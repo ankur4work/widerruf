@@ -2,7 +2,7 @@
 
 client_id = "adda97826bd685ef1a1f3f1809c6af38"
 name = "Widerruf: EU Withdrawal Button"
-application_url = "https://widerruf.onkra.online"
+application_url = "https://widerruf.onkra.online/app"
 embedded = true
 
 [build]

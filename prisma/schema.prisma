@@ -1,0 +1,131 @@
+// Widerruf: EU Withdrawal Button — Prisma schema
+// EU Directive 2023/2673 (Art. 11a CRD) compliant withdrawal data model.
+// learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Status enums are stored as strings (kept simple, validated in app code):
+//   WithdrawalStatus: "PENDING" | "PROCESSED" | "REJECTED"
+//   ButtonMode:       "FOOTER"  | "FLOATING"
+//   Plan:             "FREE"    | "PRO"
+
+// Shopify OAuth session (from @shopify/shopify-app-session-storage-prisma)
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+// Per-shop settings for the withdrawal button + form
+model Settings {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+
+  // Button presentation (App Embed block)
+  buttonMode      String   @default("FOOTER") // FOOTER | FLOATING
+  buttonLabel     String?  // override; defaults to legally-correct i18n label
+  defaultLocale   String   @default("en")     // ISO code, auto from storefront if empty
+
+  // Form copy (editable on FREE plan — competitors lock this)
+  formTitle       String?
+  formIntro       String?
+  itemsFieldLabel String?  // e.g. "Items" or "Product/Service" for digital sellers
+  itemsFieldHelp  String?
+
+  // Legal/behaviour
+  withdrawalDays  Int      @default(14)        // cooling-off window (14..30)
+  excludedNote    String?  // info about excluded goods (hygiene/personalised/digital)
+
+  // Branding (advanced branding gated to PRO)
+  brandColor      String   @default("#1A1A1A")
+  accentColor     String   @default("#2563EB")
+  showWatermark   Boolean  @default(false)     // FREE has NO forced watermark
+  logoUrl         String?
+
+  // Email
+  emailFrom       String?  // custom sender (PRO); FREE uses shared sender
+  emailReplyTo    String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shop])
+}
+
+// A single customer withdrawal request (the legal record)
+model WithdrawalRequest {
+  id               String    @id @default(cuid())
+  shop             String
+
+  // Required by Art. 11a: name, contract/order id, contact (email)
+  customerName     String
+  email            String
+  orderRef         String?   // order number/name the customer entered
+  itemsDescription String?   // what they want to withdraw (text — works for goods + digital)
+
+  locale           String    @default("en")
+  status           String    @default("PENDING") // PENDING | PROCESSED | REJECTED
+
+  // Durable-medium proof
+  confirmationSentAt DateTime?
+  pdfGeneratedAt     DateTime?
+
+  // Audit metadata (timestamp is the legally important "received at")
+  ipAddress        String?
+  userAgent        String?
+
+  createdAt        DateTime  @default(now()) // precise UTC receipt time
+  updatedAt        DateTime  @updatedAt
+
+  events           AuditEvent[]
+
+  @@index([shop])
+  @@index([shop, status])
+  @@index([createdAt])
+}
+
+// Append-only audit trail per request (for legal traceability)
+model AuditEvent {
+  id          String            @id @default(cuid())
+  request     WithdrawalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId   String
+  type        String            // CREATED | CONFIRMATION_SENT | STATUS_CHANGED | PDF_GENERATED
+  payloadJson String?           // JSON snapshot
+  createdAt   DateTime          @default(now())
+
+  @@index([requestId])
+}
+
+// Free vs paid plan tracking
+model ShopSubscription {
+  id             String   @id @default(cuid())
+  shop           String   @unique
+  plan           String   @default("FREE") // FREE | PRO
+  subscriptionId String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([shop])
+}

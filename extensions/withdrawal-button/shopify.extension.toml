@@ -1,0 +1,13 @@
+# Theme app extension — the EU withdrawal button (App Embed, additive only)
+# https://shopify.dev/docs/apps/online-store/theme-app-extensions
+
+api_version = "2024-10"
+
+[[extensions]]
+type = "theme"
+name = "Widerruf Button"
+handle = "withdrawal-button"
+
+[extensions.capabilities]
+ajax_api = false
+block_progress = false

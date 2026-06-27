@@ -1,0 +1,69 @@
+{
+  "name": "widerruf-eu-withdrawal-button",
+  "description": "Widerruf: EU Withdrawal Button - EU Directive 2023/2673 compliant withdrawal button & form for Shopify",
+  "private": true,
+  "scripts": {
+    "build": "npm run prisma:generate && remix vite:build",
+    "dev": "shopify app dev",
+    "start": "npm run start:check && remix-serve ./build/server/index.js",
+    "start:check": "node ./scripts/check-env.mjs",
+    "docker-start": "node ./scripts/check-env.mjs && prisma migrate deploy && remix-serve ./build/server/index.js",
+    "config:link": "shopify app config link",
+    "config:push": "shopify app config push",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "shopify": "shopify",
+    "prisma": "prisma",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "setup": "npm run start:check && npm run prisma:generate && npm run prisma:migrate",
+    "typecheck": "tsc"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18.20.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@remix-run/node": "^2.7.1",
+    "@remix-run/react": "^2.7.1",
+    "@remix-run/serve": "^2.7.1",
+    "@shopify/app-bridge-react": "^4.1.2",
+    "@shopify/polaris": "^12.0.0",
+    "@shopify/shopify-app-remix": "^3.0.0",
+    "@shopify/shopify-app-session-storage-prisma": "^5.0.0",
+    "isbot": "^5.1.0",
+    "nodemailer": "^6.9.13",
+    "prisma": "^5.22.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite-tsconfig-paths": "^4.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.7.1",
+    "@shopify/api-codegen-preset": "^1.0.0",
+    "@types/eslint": "^8.56.5",
+    "@types/node": "^20.6.3",
+    "@types/nodemailer": "^6.4.15",
+    "@types/react": "^18.2.31",
+    "@types/react-dom": "^18.2.14",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.3"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "trustedDependencies": [
+    "@shopify/plugin-cloudflare"
+  ],
+  "overrides": {
+    "@shopify/shopify-app-remix": {
+      "isbot": "$isbot"
+    }
+  }
+}

@@ -7,6 +7,7 @@ api_version = "2024-10"
 type = "theme"
 name = "Widerruf Button"
 handle = "withdrawal-button"
+uid = "5486ed8e-938a-13aa-afc2-f197041b6f55e211e496"
 
 [extensions.capabilities]
 ajax_api = false

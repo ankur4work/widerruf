@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useSubmit, useNavigation } from "@remix-run/react";
+import { useLoaderData, useSubmit, useNavigation, useActionData } from "@remix-run/react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import {
   Page,
   Layout,
@@ -57,9 +58,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function SettingsPage() {
   const { settings } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const nav = useNavigation();
+  const shopify = useAppBridge();
   const saving = nav.state === "submitting";
+
+  useEffect(() => {
+    if ((actionData as any)?.ok) {
+      shopify.toast.show("Settings saved");
+    }
+  }, [actionData, shopify]);
 
   const [buttonMode, setButtonMode] = useState(settings.buttonMode);
   const [defaultLocale, setDefaultLocale] = useState(settings.defaultLocale);

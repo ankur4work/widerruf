@@ -1,5 +1,7 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useSubmit } from "@remix-run/react";
+import { useEffect } from "react";
+import { useLoaderData, useSubmit, useActionData } from "@remix-run/react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import {
   Page,
   Layout,
@@ -74,7 +76,15 @@ function statusBadge(status: string) {
 
 export default function Dashboard() {
   const { requests, pendingCount, plan } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const submit = useSubmit();
+  const shopify = useAppBridge();
+
+  useEffect(() => {
+    if ((actionData as any)?.ok) {
+      shopify.toast.show("Request updated");
+    }
+  }, [actionData, shopify]);
 
   const setStatus = (id: string, status: string) =>
     submit({ id, status }, { method: "post" });

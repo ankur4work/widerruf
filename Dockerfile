@@ -3,6 +3,9 @@ FROM node:18-alpine
 ARG SHOPIFY_API_KEY
 ENV SHOPIFY_API_KEY=$SHOPIFY_API_KEY
 ENV NODE_ENV=production
+# Cap V8 heap so the rollup/Polaris build stays within RAM on the shared server
+# (prevents the OOM-kill / swap-thrash hangs seen during build).
+ENV NODE_OPTIONS=--max-old-space-size=2048
 EXPOSE 3000
 WORKDIR /app
 

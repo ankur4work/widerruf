@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useSubmit } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -74,7 +74,10 @@ function statusBadge(status: string) {
 
 export default function Dashboard() {
   const { requests, pendingCount, plan } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher();
+  const submit = useSubmit();
+
+  const setStatus = (id: string, status: string) =>
+    submit({ id, status }, { method: "post" });
 
   return (
     <Page
@@ -129,22 +132,21 @@ export default function Dashboard() {
                     <IndexTable.Cell>
                       <InlineStack gap="200">
                         {r.status !== "PROCESSED" && (
-                          <fetcher.Form method="post">
-                            <input type="hidden" name="id" value={r.id} />
-                            <input type="hidden" name="status" value="PROCESSED" />
-                            <Button size="micro" submit>
-                              Mark processed
-                            </Button>
-                          </fetcher.Form>
+                          <Button
+                            size="micro"
+                            onClick={() => setStatus(r.id, "PROCESSED")}
+                          >
+                            Mark processed
+                          </Button>
                         )}
                         {r.status === "PENDING" && (
-                          <fetcher.Form method="post">
-                            <input type="hidden" name="id" value={r.id} />
-                            <input type="hidden" name="status" value="REJECTED" />
-                            <Button size="micro" tone="critical" submit>
-                              Reject
-                            </Button>
-                          </fetcher.Form>
+                          <Button
+                            size="micro"
+                            tone="critical"
+                            onClick={() => setStatus(r.id, "REJECTED")}
+                          >
+                            Reject
+                          </Button>
                         )}
                       </InlineStack>
                     </IndexTable.Cell>

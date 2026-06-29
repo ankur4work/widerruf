@@ -140,16 +140,14 @@ export default function Dashboard() {
                     <IndexTable.Cell>{r.orderRef || "—"}</IndexTable.Cell>
                     <IndexTable.Cell>{statusBadge(r.status)}</IndexTable.Cell>
                     <IndexTable.Cell>
-                      <InlineStack gap="200">
-                        {r.status !== "PROCESSED" && (
+                      {r.status === "PENDING" ? (
+                        <InlineStack gap="200">
                           <Button
                             size="micro"
                             onClick={() => setStatus(r.id, "PROCESSED")}
                           >
                             Mark processed
                           </Button>
-                        )}
-                        {r.status === "PENDING" && (
                           <Button
                             size="micro"
                             tone="critical"
@@ -157,8 +155,12 @@ export default function Dashboard() {
                           >
                             Reject
                           </Button>
-                        )}
-                      </InlineStack>
+                        </InlineStack>
+                      ) : (
+                        <Text as="span" tone="subdued" variant="bodySm">
+                          —
+                        </Text>
+                      )}
                     </IndexTable.Cell>
                   </IndexTable.Row>
                 ))}

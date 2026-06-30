@@ -64,8 +64,9 @@ model Settings {
   logoUrl         String?
 
   // Email
-  emailFrom       String?  // custom sender (PRO); FREE uses shared sender
-  emailReplyTo    String?
+  senderName      String?  // store display name shown to customers (FREE)
+  emailReplyTo    String?  // merchant reply-to address (FREE)
+  emailFrom       String?  // full custom From on own domain (PRO)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

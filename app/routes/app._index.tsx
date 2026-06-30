@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
+import { sendOutcomeNotification } from "~/lib/email.server";
 import type { WithdrawalStatus } from "~/lib/types";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -65,6 +66,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       payloadJson: JSON.stringify({ to: status }),
     },
   });
+
+  // Notify the customer of the merchant's decision (best-effort).
+  if (status === "PROCESSED" || status === "REJECTED") {
+    const settings = await prisma.settings.findUnique({
+      where: { shop: session.shop },
+    });
+    await sendOutcomeNotification({
+      to: req.email,
+      shop: session.shop,
+      locale: req.locale,
+      customerName: req.customerName,
+      status,
+      fromName: settings?.senderName,
+      replyTo: settings?.emailReplyTo,
+      customFrom: settings?.emailFrom,
+    });
+  }
+
   return json({ ok: true });
 };
 

@@ -254,7 +254,9 @@ export async function action({ request }: ActionFunctionArgs) {
       orderRef: values.orderRef,
       itemsDescription: values.items,
       receivedAt,
-      from: ctx.settings?.emailFrom,
+      fromName: ctx.settings?.senderName,
+      replyTo: ctx.settings?.emailReplyTo,
+      customFrom: ctx.settings?.emailFrom,
     });
     if (sent) {
       await prisma.withdrawalRequest.update({

@@ -51,6 +51,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       withdrawalDays,
       excludedNote: (form.get("excludedNote") as string) || null,
       accentColor: String(form.get("accentColor") || "#2563EB"),
+      senderName: (form.get("senderName") as string) || null,
+      emailReplyTo: (form.get("emailReplyTo") as string) || null,
     },
   });
   return json({ ok: true });
@@ -80,6 +82,8 @@ export default function SettingsPage() {
   const [withdrawalDays, setWithdrawalDays] = useState(settings.withdrawalDays);
   const [excludedNote, setExcludedNote] = useState(settings.excludedNote ?? "");
   const [accentColor, setAccentColor] = useState(settings.accentColor);
+  const [senderName, setSenderName] = useState(settings.senderName ?? "");
+  const [replyTo, setReplyTo] = useState(settings.emailReplyTo ?? "");
 
   const defaults = t(defaultLocale);
 
@@ -95,6 +99,8 @@ export default function SettingsPage() {
     fd.set("withdrawalDays", String(withdrawalDays));
     fd.set("excludedNote", excludedNote);
     fd.set("accentColor", accentColor);
+    fd.set("senderName", senderName);
+    fd.set("emailReplyTo", replyTo);
     submit(fd, { method: "post" });
   }
 
@@ -185,6 +191,37 @@ export default function SettingsPage() {
                   value={excludedNote}
                   onChange={setExcludedNote}
                   multiline={2}
+                  autoComplete="off"
+                />
+              </FormLayout>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Email (sender)
+              </Text>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                Confirmation emails show your store name to customers. Replies go
+                to your reply-to address.
+              </Text>
+              <FormLayout>
+                <TextField
+                  label="Sender name shown to customers"
+                  value={senderName}
+                  onChange={setSenderName}
+                  placeholder="Your store name"
+                  autoComplete="off"
+                />
+                <TextField
+                  label="Reply-to email"
+                  type="email"
+                  value={replyTo}
+                  onChange={setReplyTo}
+                  placeholder="support@yourstore.com"
+                  helpText="Customer replies to withdrawal emails go here."
                   autoComplete="off"
                 />
               </FormLayout>

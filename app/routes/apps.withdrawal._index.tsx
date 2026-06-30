@@ -107,6 +107,7 @@ function renderStep1(
     </label>
     ${errors.items ? `<p class="err">${esc(errors.items)}</p>` : ""}
     ${custom.excludedNote ? `<p class="help" style="margin-top:14px">${esc(custom.excludedNote)}</p>` : ""}
+    <input type="text" name="company_url" tabindex="-1" autocomplete="off" aria-hidden="true" value="" style="position:absolute!important;left:-9999px!important;top:-9999px!important;height:1px;width:1px;opacity:0;pointer-events:none">
     <button class="btn" type="submit">${esc(s.continueButton)}</button>
   </form>`;
   return page(inner, accent);
@@ -130,6 +131,7 @@ function renderStep2(s: Strings, accent: string, v: FormValues): string {
     ${hidden("email", v.email)}
     ${hidden("orderRef", v.orderRef)}
     ${hidden("items", v.items)}
+    <input type="text" name="company_url" tabindex="-1" autocomplete="off" aria-hidden="true" value="" style="position:absolute!important;left:-9999px!important;top:-9999px!important;height:1px;width:1px;opacity:0;pointer-events:none">
     <div class="row">
       <button class="btn secondary" type="submit" name="step" value="back">${esc(s.backButton)}</button>
       <button class="btn" type="submit">${esc(s.confirmButton)}</button>
@@ -147,6 +149,19 @@ function renderSuccess(s: Strings, accent: string): string {
   </div>`;
   return page(inner, accent);
 }
+
+function renderTooMany(accent: string): string {
+  const inner = `
+  <div class="success">
+    <h1>Too many requests</h1>
+    <p class="intro">You have submitted several requests recently. Please wait a little while before trying again, or contact the store directly.</p>
+  </div>`;
+  return page(inner, accent);
+}
+
+// Anti-abuse limits (free, no external service)
+const MAX_PER_IP_PER_HOUR = 5;
+const MAX_PER_EMAIL_PER_DAY = 3;
 
 async function getContext(request: Request) {
   const { session } = await authenticate.public.appProxy(request);
@@ -197,6 +212,13 @@ export async function action({ request }: ActionFunctionArgs) {
     excludedNote: ctx.settings?.excludedNote,
   };
 
+  // Honeypot: a hidden field real users never fill. If a bot filled it, pretend
+  // success and store nothing.
+  const honeypot = String(form.get("company_url") || "").trim();
+  if (honeypot && (step === "review" || step === "confirm")) {
+    return html(renderSuccess(strings, accent));
+  }
+
   // "Back" button returns to step 1 with values preserved
   if (step === "back") {
     return html(renderStep1(strings, accent, values, {}, customText));
@@ -222,6 +244,34 @@ export async function action({ request }: ActionFunctionArgs) {
     const ipAddress =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
     const userAgent = request.headers.get("user-agent") || null;
+
+    // --- Anti-abuse checks (before we store / email) ---
+    const since1h = new Date(receivedAt.getTime() - 60 * 60 * 1000);
+    const since24h = new Date(receivedAt.getTime() - 24 * 60 * 60 * 1000);
+
+    if (ipAddress) {
+      const ipCount = await prisma.withdrawalRequest.count({
+        where: { shop, ipAddress, createdAt: { gte: since1h } },
+      });
+      if (ipCount >= MAX_PER_IP_PER_HOUR) return html(renderTooMany(accent));
+    }
+
+    const emailCount = await prisma.withdrawalRequest.count({
+      where: { shop, email: values.email, createdAt: { gte: since24h } },
+    });
+    if (emailCount >= MAX_PER_EMAIL_PER_DAY) return html(renderTooMany(accent));
+
+    // Duplicate: same email + order already pending in last 24h -> idempotent.
+    const duplicate = await prisma.withdrawalRequest.findFirst({
+      where: {
+        shop,
+        email: values.email,
+        orderRef: values.orderRef || null,
+        status: "PENDING",
+        createdAt: { gte: since24h },
+      },
+    });
+    if (duplicate) return html(renderSuccess(strings, accent));
 
     const record = await prisma.withdrawalRequest.create({
       data: {

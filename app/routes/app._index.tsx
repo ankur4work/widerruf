@@ -81,6 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fromName: settings?.senderName,
       replyTo: settings?.emailReplyTo,
       customFrom: settings?.emailFrom,
+      accent: settings?.accentColor,
     });
   }
 

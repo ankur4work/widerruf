@@ -47,27 +47,36 @@ function page(inner: string, accent: string): string {
 <meta name="robots" content="noindex">
 <title>Withdrawal</title>
 <style>
-  :root { --accent: ${esc(accent)}; }
+  :root { --accent: ${esc(accent)}; --radius: 14px; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; margin: 0; background: #f6f6f7; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 32px 20px; }
-  .card { background: #fff; border: 1px solid #e3e3e3; border-radius: 12px; padding: 28px; }
-  h1 { font-size: 22px; margin: 0 0 8px; }
-  p.intro { color: #555; margin: 0 0 20px; font-size: 14px; line-height: 1.5; }
-  label { display: block; font-weight: 600; font-size: 13px; margin: 16px 0 6px; }
-  .help { font-weight: 400; color: #777; font-size: 12px; margin: 4px 0 0; }
-  input, textarea { width: 100%; padding: 10px 12px; border: 1px solid #c9c9c9; border-radius: 8px; font-size: 14px; font-family: inherit; }
-  textarea { min-height: 80px; resize: vertical; }
-  .err { color: #b00020; font-size: 13px; margin: 6px 0 0; }
-  .btn { display: inline-block; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 12px 18px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 22px; }
-  .btn.secondary { background: #fff; color: #1a1a1a; border: 1px solid #c9c9c9; margin-right: 8px; }
-  .row { margin-top: 18px; }
-  dl { margin: 0; }
-  dt { font-weight: 600; font-size: 12px; color: #777; margin-top: 12px; }
-  dd { margin: 2px 0 0; font-size: 15px; }
-  .success { text-align: center; }
-  .success .tick { font-size: 40px; }
-  .legal { color: #999; font-size: 11px; margin-top: 18px; text-align: center; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1b1b2b; margin: 0; background: linear-gradient(180deg,#f7f8fa 0%,#eceff5 100%); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 44px 20px; animation: rise .35s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .card { background: #fff; border: 1px solid #ececf1; border-radius: var(--radius); padding: 32px; box-shadow: 0 6px 28px rgba(20,20,45,.07); }
+  .step { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+  h1 { font-size: 23px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.01em; }
+  p.intro { color: #5b5b6b; margin: 0 0 22px; font-size: 14px; line-height: 1.55; }
+  label { display: block; font-weight: 600; font-size: 13px; margin: 18px 0 7px; color: #2a2a38; }
+  .help { font-weight: 400; color: #8a8a98; font-size: 12px; margin: 5px 0 0; }
+  input, textarea { width: 100%; padding: 11px 13px; border: 1px solid #d7d7e0; border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  textarea { min-height: 92px; resize: vertical; }
+  .err { color: #d72c4d; font-size: 13px; margin: 6px 0 0; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 24px; box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent); transition: transform .08s ease, filter .15s ease, box-shadow .15s ease; }
+  .btn:hover { filter: brightness(1.07); box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .btn:active { transform: translateY(1px); }
+  .btn.secondary { background: #fff; color: #2a2a38; border: 1px solid #d7d7e0; box-shadow: none; margin-right: 10px; }
+  .btn.secondary:hover { background: #f6f6f9; filter: none; box-shadow: none; }
+  .row { margin-top: 24px; display: flex; align-items: center; }
+  dl { margin: 0; border: 1px solid #ececf1; border-radius: 12px; overflow: hidden; }
+  dt { font-weight: 600; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: #8a8a98; padding: 12px 14px 0; }
+  dd { margin: 3px 0 0; font-size: 15px; color: #2a2a38; padding: 0 14px 12px; border-bottom: 1px solid #f2f2f6; word-break: break-word; }
+  dd:last-child { border-bottom: 0; }
+  .success { text-align: center; padding: 10px 0; }
+  .tick { width: 64px; height: 64px; border-radius: 50%; background: #eef2ff; background: color-mix(in srgb, var(--accent) 14%, #fff); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 34px; margin: 4px auto 18px; animation: pop .4s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .legal { color: #9a9aa6; font-size: 11px; margin-top: 18px; text-align: center; }
+  @media (max-width: 560px) { .wrap { padding: 28px 14px; } .card { padding: 22px; } h1 { font-size: 20px; } }
 </style>
 </head>
 <body>
@@ -86,6 +95,7 @@ function renderStep1(
   custom: { title?: string | null; intro?: string | null; itemsLabel?: string | null; itemsHelp?: string | null; excludedNote?: string | null } = {},
 ): string {
   const inner = `
+  <p class="step">Step 1 of 2</p>
   <h1>${esc(custom.title || s.formTitle)}</h1>
   <p class="intro">${esc(custom.intro || s.intro)}</p>
   <form method="post">
@@ -117,6 +127,7 @@ function renderStep2(s: Strings, accent: string, v: FormValues): string {
   const hidden = (name: string, val: string) =>
     `<input type="hidden" name="${name}" value="${esc(val)}">`;
   const inner = `
+  <p class="step">Step 2 of 2</p>
   <h1>${esc(s.reviewTitle)}</h1>
   <p class="intro">${esc(s.reviewHint)}</p>
   <dl>
@@ -307,6 +318,7 @@ export async function action({ request }: ActionFunctionArgs) {
       fromName: ctx.settings?.senderName,
       replyTo: ctx.settings?.emailReplyTo,
       customFrom: ctx.settings?.emailFrom,
+      accent: ctx.accent,
     });
     if (sent) {
       await prisma.withdrawalRequest.update({

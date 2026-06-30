@@ -45,6 +45,40 @@ interface BaseInput {
   fromName?: string | null; // store display name (FREE)
   replyTo?: string | null; // merchant reply-to
   customFrom?: string | null; // full custom From (PRO)
+  accent?: string | null; // brand accent color for the email
+}
+
+function esc(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** Branded, email-client-safe HTML shell (inline styles only). */
+function htmlShell(opts: {
+  accent: string;
+  storeName: string;
+  heading: string;
+  bodyHtml: string;
+}): string {
+  const a = opts.accent || "#2563EB";
+  return `<div style="background:#f4f5f7;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #ececf1;border-radius:12px;overflow:hidden;">
+    <div style="background:${a};padding:16px 24px;color:#ffffff;font-size:16px;font-weight:600;">${esc(opts.storeName)}</div>
+    <div style="padding:24px;color:#2a2a38;">
+      <h1 style="font-size:18px;margin:0 0 12px;">${esc(opts.heading)}</h1>
+      ${opts.bodyHtml}
+    </div>
+    <div style="padding:14px 24px;background:#fafafb;border-top:1px solid #f0f0f4;font-size:11px;color:#aaaab4;">
+      Automated message from ${esc(opts.storeName)} · EU Directive 2023/2673 withdrawal function.
+    </div>
+  </div>
+</div>`;
+}
+
+function row(label: string, value: string): string {
+  return `<tr><td style="padding:6px 0;font-size:12px;color:#8a8a98;width:38%;vertical-align:top;">${esc(label)}</td><td style="padding:6px 0;font-size:14px;color:#2a2a38;">${esc(value)}</td></tr>`;
 }
 
 export interface ConfirmationInput extends BaseInput {
@@ -59,6 +93,7 @@ async function send(opts: {
   replyTo?: string | null;
   subject: string;
   text: string;
+  html?: string;
 }): Promise<boolean> {
   const tx = getTransporter();
   if (!tx) {
@@ -74,6 +109,7 @@ async function send(opts: {
       replyTo: opts.replyTo || undefined,
       subject: opts.subject,
       text: opts.text,
+      html: opts.html,
     });
     return true;
   } catch (error) {
@@ -106,12 +142,27 @@ export async function sendWithdrawalConfirmation(
     .filter(Boolean)
     .join("\n");
 
+  const detailRows = [
+    row(s.nameLabel, input.customerName),
+    input.orderRef ? row(s.orderLabel, input.orderRef) : "",
+    input.itemsDescription ? row(s.itemsLabel, input.itemsDescription) : "",
+    row("Received (UTC)", received),
+  ].join("");
+  const html = htmlShell({
+    accent: input.accent || "#2563EB",
+    storeName,
+    heading: s.successTitle,
+    bodyHtml: `<p style="font-size:14px;line-height:1.6;color:#5b5b6b;margin:0 0 16px;">${esc(s.successMessage)}</p>
+      <table style="width:100%;border-collapse:collapse;border-top:1px solid #f0f0f4;margin-top:8px;">${detailRows}</table>`,
+  });
+
   return send({
     from: buildFrom(input.fromName, input.customFrom),
     to: input.to,
     replyTo: input.replyTo,
     subject: `${s.successTitle} — ${storeName}`,
     text,
+    html,
   });
 }
 
@@ -151,11 +202,19 @@ export async function sendOutcomeNotification(
     `— ${storeName}`,
   ].join("\n");
 
+  const html = htmlShell({
+    accent: input.accent || "#2563EB",
+    storeName,
+    heading,
+    bodyHtml: `<p style="font-size:14px;line-height:1.6;color:#5b5b6b;margin:0;">${esc(body)}</p>`,
+  });
+
   return send({
     from: buildFrom(input.fromName, input.customFrom),
     to: input.to,
     replyTo: input.replyTo,
     subject: `${heading} — ${storeName}`,
     text,
+    html,
   });
 }

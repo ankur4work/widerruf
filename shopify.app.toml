@@ -12,6 +12,11 @@ dev_store_url = "REPLACE_WITH_YOUR_DEV_STORE.myshopify.com"
 [webhooks]
 api_version = "2024-01"
 
+  [webhooks.privacy_compliance]
+  customer_data_request_url = "https://widerruf.onkra.online/webhooks"
+  customer_deletion_url = "https://widerruf.onkra.online/webhooks"
+  shop_deletion_url = "https://widerruf.onkra.online/webhooks"
+
 [access_scopes]
 # read_orders lets us match/show order details on withdrawal; expand later for Returns sync (write_orders)
 scopes = "read_orders"

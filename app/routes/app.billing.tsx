@@ -82,7 +82,7 @@ const COMING_SOON = [
 ];
 
 export default function Billing() {
-  const { isPro, price, currency, trialDays, isTest } =
+  const { isPro, price, currency, trialDays } =
     useLoaderData<typeof loader>();
   const submit = useSubmit();
 
@@ -159,11 +159,6 @@ export default function Billing() {
                     ? `Start ${trialDays}-day free trial`
                     : "Upgrade to Pro"}
                 </Button>
-              )}
-              {isTest && (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Test mode — no real charge will be made.
-                </Text>
               )}
             </BlockStack>
           </Card>

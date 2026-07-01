@@ -44,9 +44,9 @@ const en: Strings = {
   backButton: "Back",
   reviewTitle: "Confirm your withdrawal",
   reviewHint: "Please review your details, then confirm.",
-  successTitle: "Withdrawal received",
+  successTitle: "Withdrawal request received",
   successMessage:
-    "We have received your withdrawal and sent a confirmation to your email.",
+    "We've received your withdrawal request and emailed you this confirmation. After we review it, you'll receive another email confirming whether it has been accepted or declined.",
   required: "This field is required.",
   invalidEmail: "Please enter a valid email address.",
 };
@@ -68,9 +68,9 @@ const de: Strings = {
   backButton: "Zurück",
   reviewTitle: "Widerruf bestätigen",
   reviewHint: "Bitte prüfen Sie Ihre Angaben und bestätigen Sie.",
-  successTitle: "Widerruf eingegangen",
+  successTitle: "Widerrufsantrag eingegangen",
   successMessage:
-    "Wir haben Ihren Widerruf erhalten und eine Bestätigung an Ihre E-Mail gesendet.",
+    "Wir haben Ihren Widerrufsantrag erhalten und Ihnen diese Bestätigung per E-Mail gesendet. Nach der Prüfung erhalten Sie eine weitere E-Mail, ob der Widerruf angenommen oder abgelehnt wurde.",
   required: "Dieses Feld ist erforderlich.",
   invalidEmail: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
 };
@@ -91,9 +91,9 @@ const fr: Strings = {
   backButton: "Retour",
   reviewTitle: "Confirmer votre rétractation",
   reviewHint: "Veuillez vérifier vos informations, puis confirmer.",
-  successTitle: "Rétractation reçue",
+  successTitle: "Demande de rétractation reçue",
   successMessage:
-    "Nous avons reçu votre rétractation et envoyé une confirmation à votre e-mail.",
+    "Nous avons reçu votre demande de rétractation et vous avons envoyé cette confirmation par e-mail. Après examen, vous recevrez un autre e-mail indiquant si elle a été acceptée ou refusée.",
   required: "Ce champ est obligatoire.",
   invalidEmail: "Veuillez saisir une adresse e-mail valide.",
 };
@@ -114,9 +114,9 @@ const es: Strings = {
   backButton: "Atrás",
   reviewTitle: "Confirme su desistimiento",
   reviewHint: "Revise sus datos y confirme.",
-  successTitle: "Desistimiento recibido",
+  successTitle: "Solicitud de desistimiento recibida",
   successMessage:
-    "Hemos recibido su desistimiento y enviado una confirmación a su correo.",
+    "Hemos recibido su solicitud de desistimiento y le hemos enviado esta confirmación por correo. Tras revisarla, recibirá otro correo indicando si ha sido aceptada o rechazada.",
   required: "Este campo es obligatorio.",
   invalidEmail: "Introduzca una dirección de correo válida.",
 };
@@ -137,9 +137,9 @@ const it: Strings = {
   backButton: "Indietro",
   reviewTitle: "Conferma il tuo recesso",
   reviewHint: "Controlla i tuoi dati e conferma.",
-  successTitle: "Recesso ricevuto",
+  successTitle: "Richiesta di recesso ricevuta",
   successMessage:
-    "Abbiamo ricevuto il tuo recesso e inviato una conferma alla tua email.",
+    "Abbiamo ricevuto la tua richiesta di recesso e ti abbiamo inviato questa conferma via email. Dopo la verifica, riceverai un'altra email che indica se è stata accettata o rifiutata.",
   required: "Questo campo è obbligatorio.",
   invalidEmail: "Inserisci un indirizzo email valido.",
 };
@@ -160,9 +160,9 @@ const nl: Strings = {
   backButton: "Terug",
   reviewTitle: "Bevestig uw herroeping",
   reviewHint: "Controleer uw gegevens en bevestig.",
-  successTitle: "Herroeping ontvangen",
+  successTitle: "Herroepingsverzoek ontvangen",
   successMessage:
-    "We hebben uw herroeping ontvangen en een bevestiging naar uw e-mail gestuurd.",
+    "We hebben uw herroepingsverzoek ontvangen en u deze bevestiging per e-mail gestuurd. Na beoordeling ontvangt u nog een e-mail of het is geaccepteerd of afgewezen.",
   required: "Dit veld is verplicht.",
   invalidEmail: "Voer een geldig e-mailadres in.",
 };

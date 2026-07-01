@@ -166,18 +166,25 @@ export async function sendWithdrawalConfirmation(
   });
 }
 
-const OUTCOME_TEXT: Record<string, { processed: string; rejected: string }> = {
+const OUTCOME_TEXT: Record<
+  string,
+  { processedHeading: string; rejectedHeading: string; processed: string; rejected: string }
+> = {
   en: {
+    processedHeading: "Withdrawal accepted",
+    rejectedHeading: "Withdrawal declined",
     processed:
-      "Your withdrawal has been accepted and is now being processed. Any refund will follow according to the store's policy.",
+      "Your withdrawal request has been accepted and is now being processed. Any refund will follow according to the store's policy.",
     rejected:
       "Your withdrawal request could not be accepted. Please reply to this email if you have any questions.",
   },
   de: {
+    processedHeading: "Widerruf angenommen",
+    rejectedHeading: "Widerruf abgelehnt",
     processed:
-      "Ihr Widerruf wurde angenommen und wird nun bearbeitet. Eine eventuelle Rückerstattung erfolgt gemäß den Bedingungen des Shops.",
+      "Ihr Widerrufsantrag wurde angenommen und wird nun bearbeitet. Eine eventuelle Rückerstattung erfolgt gemäß den Bedingungen des Shops.",
     rejected:
-      "Ihr Widerruf konnte nicht angenommen werden. Bitte antworten Sie auf diese E-Mail, falls Sie Fragen haben.",
+      "Ihr Widerrufsantrag konnte nicht angenommen werden. Bitte antworten Sie auf diese E-Mail, falls Sie Fragen haben.",
   },
 };
 
@@ -190,7 +197,7 @@ export async function sendOutcomeNotification(
   const lang = OUTCOME_TEXT[input.locale.toLowerCase().split("-")[0]] || OUTCOME_TEXT.en;
   const body = input.status === "PROCESSED" ? lang.processed : lang.rejected;
   const heading =
-    input.status === "PROCESSED" ? s.successTitle : "Withdrawal update";
+    input.status === "PROCESSED" ? lang.processedHeading : lang.rejectedHeading;
 
   const text = [
     heading,

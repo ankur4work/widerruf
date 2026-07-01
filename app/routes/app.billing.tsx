@@ -1,5 +1,5 @@
 import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
-import { useLoaderData, useSubmit } from "@remix-run/react";
+import { useLoaderData, useSubmit, useActionData } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -11,30 +11,23 @@ import {
   Badge,
   List,
   Divider,
+  Banner,
 } from "@shopify/polaris";
 import { authenticate, PLAN_PRO, BILLING_TEST } from "~/shopify.server";
 import prisma from "~/db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
-  const { hasActivePayment } = await billing.check({
-    plans: [PLAN_PRO],
-    isTest: BILLING_TEST,
-  });
-
-  // Keep our DB in sync so the storefront (proxy) knows the plan.
-  await prisma.shopSubscription.upsert({
+  const { session } = await authenticate.admin(request);
+  // Read plan from our DB (kept in sync by the APP_SUBSCRIPTIONS_UPDATE webhook).
+  // We avoid billing.check() here because it 403s when the app uses Managed Pricing.
+  const sub = await prisma.shopSubscription.findUnique({
     where: { shop: session.shop },
-    update: { plan: hasActivePayment ? "PRO" : "FREE" },
-    create: { shop: session.shop, plan: hasActivePayment ? "PRO" : "FREE" },
   });
-
   return json({
-    isPro: hasActivePayment,
+    isPro: sub?.plan === "PRO",
     price: Number(process.env.BILLING_PRO_PRICE || 9),
     currency: process.env.BILLING_CURRENCY || "USD",
     trialDays: Number(process.env.BILLING_PRO_TRIAL_DAYS || 7),
-    isTest: BILLING_TEST,
   });
 };
 
@@ -42,28 +35,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing } = await authenticate.admin(request);
   const intent = String((await request.formData()).get("intent"));
 
-  if (intent === "cancel") {
-    const { appSubscriptions } = await billing.check({
-      plans: [PLAN_PRO],
-      isTest: BILLING_TEST,
-    });
-    const sub = appSubscriptions[0];
-    if (sub) {
-      await billing.cancel({
-        subscriptionId: sub.id,
+  try {
+    if (intent === "cancel") {
+      const { appSubscriptions } = await billing.check({
+        plans: [PLAN_PRO],
         isTest: BILLING_TEST,
-        prorate: true,
       });
+      const sub = appSubscriptions[0];
+      if (sub) {
+        await billing.cancel({
+          subscriptionId: sub.id,
+          isTest: BILLING_TEST,
+          prorate: true,
+        });
+      }
+      return redirect("/app/billing");
     }
-    return redirect("/app/billing");
-  }
 
-  // Upgrade: redirects to Shopify's approval screen.
-  return billing.request({
-    plan: PLAN_PRO,
-    isTest: BILLING_TEST,
-    returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
-  });
+    // Upgrade: throws a redirect Response to Shopify's approval screen.
+    return await billing.request({
+      plan: PLAN_PRO,
+      isTest: BILLING_TEST,
+      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
+    });
+  } catch (e) {
+    // A thrown Response is the intended redirect — let it through.
+    if (e instanceof Response) throw e;
+    // Billing API is forbidden (e.g. app uses Managed Pricing). Fail gracefully.
+    console.error("[billing] request failed:", e);
+    return json({ error: "unavailable" }, { status: 200 });
+  }
 };
 
 // Only features that actually work today.
@@ -84,6 +85,7 @@ const COMING_SOON = [
 export default function Billing() {
   const { isPro, price, currency, trialDays } =
     useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const submit = useSubmit();
 
   const act = (intent: string) => submit({ intent }, { method: "post" });
@@ -91,6 +93,14 @@ export default function Billing() {
   return (
     <Page title="Plan & billing">
       <Layout>
+        {(actionData as any)?.error && (
+          <Layout.Section>
+            <Banner tone="warning" title="Billing is being finalized">
+              Upgrades aren’t available just yet. This app’s pricing is being
+              set up — please try again shortly.
+            </Banner>
+          </Layout.Section>
+        )}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">

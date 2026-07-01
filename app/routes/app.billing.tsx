@@ -66,14 +66,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 };
 
+// Only features that actually work today.
 const PRO_FEATURES = [
-  "Remove “Powered by Widerruf” branding",
+  "Remove “Powered by Widerruf” branding from your storefront",
+  "Priority support",
+];
+
+// Planned — clearly labelled so we never charge for something that isn't live.
+const COMING_SOON = [
   "Shopify Returns / refund auto-sync",
   "Auto-cancel unfulfilled orders on withdrawal",
   "Send emails from your own domain",
   "PDF evidence packs + bulk export",
   "Analytics & withdrawal reasons",
-  "Priority support",
 ];
 
 export default function Billing() {
@@ -130,6 +135,16 @@ export default function Billing() {
                   <List.Item key={f}>{f}</List.Item>
                 ))}
               </List>
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingSm">
+                  Coming soon
+                </Text>
+                {COMING_SOON.map((f) => (
+                  <Text key={f} as="p" variant="bodyMd" tone="subdued">
+                    • {f}
+                  </Text>
+                ))}
+              </BlockStack>
               <Divider />
               {isPro ? (
                 <InlineStack gap="300" blockAlign="center">

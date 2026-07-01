@@ -1,8 +1,8 @@
 {% comment %}
   Widerruf: EU Withdrawal Button — App Embed block.
   Additive only: links to the proxy page /apps/withdrawal.
-  Shows a small "Powered by Widerruf" tag on the Free plan (hidden on Pro via
-  widerruf-brand.js, which checks /apps/withdrawal/status). No theme changes.
+  The small "Powered by Widerruf" line sits INSIDE the button box on the Free
+  plan; widerruf-brand.js hides it on Pro (checks /apps/withdrawal/status).
 {% endcomment %}
 
 {% assign label = block.settings.label | default: 'Withdraw from contract' %}
@@ -11,14 +11,19 @@
 {% assign side = block.settings.side | default: 'right' %}
 
 {% if block.settings.mode == 'floating' %}
-  <div class="widerruf-floatwrap" style="{{ side }}:18px;">
-    <a href="{{ href }}" class="widerruf-btn--floating" style="background:{{ accent }};" rel="nofollow">{{ label }}</a>
-    <div class="widerruf-brand">Powered by <a href="https://widerruf.onkra.online" target="_blank" rel="noopener">Widerruf</a></div>
-  </div>
+  <a
+    href="{{ href }}"
+    class="widerruf-btn--floating"
+    style="background:{{ accent }};{{ side }}:18px;"
+    rel="nofollow"
+  >
+    <span class="widerruf-btn__label">{{ label }}</span>
+    <span class="widerruf-brand">Powered by Widerruf</span>
+  </a>
 {% else %}
   <div class="widerruf-footer">
     <a href="{{ href }}" class="widerruf-link" rel="nofollow">{{ label }}</a>
-    <div class="widerruf-brand">Powered by <a href="https://widerruf.onkra.online" target="_blank" rel="noopener">Widerruf</a></div>
+    <span class="widerruf-brand widerruf-brand--footer">Powered by Widerruf</span>
   </div>
 {% endif %}
 
@@ -27,26 +32,25 @@
 <style>
   .widerruf-footer { text-align: center; padding: 14px 10px; }
   .widerruf-link { color: {{ accent }}; text-decoration: underline; font-size: 14px; }
-  .widerruf-floatwrap {
+  .widerruf-btn--floating {
     position: fixed;
     bottom: 18px;
     z-index: 999998;
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-  }
-  .widerruf-btn--floating {
+    gap: 1px;
     color: #fff;
-    padding: 11px 16px;
-    border-radius: 999px;
-    font-size: 14px;
-    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: 16px;
     text-decoration: none;
     box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    line-height: 1.2;
   }
-  .widerruf-brand { font-size: 10px; line-height: 1.3; color: #8a8a98; text-align: center; }
-  .widerruf-brand a { color: #8a8a98; text-decoration: underline; }
+  .widerruf-btn__label { font-size: 14px; font-weight: 600; }
+  .widerruf-brand { font-size: 9px; opacity: .8; }
+  .widerruf-btn--floating .widerruf-brand { color: rgba(255,255,255,.85); }
+  .widerruf-brand--footer { display: block; margin-top: 3px; color: #8a8a98; }
 </style>
 
 {% schema %}

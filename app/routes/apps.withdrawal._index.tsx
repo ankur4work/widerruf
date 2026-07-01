@@ -38,7 +38,10 @@ function html(body: string, status = 200): Response {
   });
 }
 
-function page(inner: string, accent: string): string {
+function page(inner: string, accent: string, showBranding = true): string {
+  const footer = showBranding
+    ? `Powered by Widerruf — EU Directive 2023/2673 withdrawal function.`
+    : `EU Directive 2023/2673 withdrawal function.`;
   return `<!doctype html>
 <html>
 <head>
@@ -81,7 +84,7 @@ function page(inner: string, accent: string): string {
 </head>
 <body>
   <div class="wrap"><div class="card">${inner}</div>
-  <p class="legal">Powered by Widerruf — EU Directive 2023/2673 withdrawal function.</p>
+  <p class="legal">${footer}</p>
   </div>
 </body>
 </html>`;
@@ -93,6 +96,7 @@ function renderStep1(
   values: Partial<FormValues> = {},
   errors: Record<string, string> = {},
   custom: { title?: string | null; intro?: string | null; itemsLabel?: string | null; itemsHelp?: string | null; excludedNote?: string | null } = {},
+  showBranding = true,
 ): string {
   const inner = `
   <p class="step">Step 1 of 2</p>
@@ -120,10 +124,10 @@ function renderStep1(
     <input type="text" name="company_url" tabindex="-1" autocomplete="off" aria-hidden="true" value="" style="position:absolute!important;left:-9999px!important;top:-9999px!important;height:1px;width:1px;opacity:0;pointer-events:none">
     <button class="btn" type="submit">${esc(s.continueButton)}</button>
   </form>`;
-  return page(inner, accent);
+  return page(inner, accent, showBranding);
 }
 
-function renderStep2(s: Strings, accent: string, v: FormValues): string {
+function renderStep2(s: Strings, accent: string, v: FormValues, showBranding = true): string {
   const hidden = (name: string, val: string) =>
     `<input type="hidden" name="${name}" value="${esc(val)}">`;
   const inner = `
@@ -148,26 +152,26 @@ function renderStep2(s: Strings, accent: string, v: FormValues): string {
       <button class="btn" type="submit">${esc(s.confirmButton)}</button>
     </div>
   </form>`;
-  return page(inner, accent);
+  return page(inner, accent, showBranding);
 }
 
-function renderSuccess(s: Strings, accent: string): string {
+function renderSuccess(s: Strings, accent: string, showBranding = true): string {
   const inner = `
   <div class="success">
     <div class="tick">✓</div>
     <h1>${esc(s.successTitle)}</h1>
     <p class="intro">${esc(s.successMessage)}</p>
   </div>`;
-  return page(inner, accent);
+  return page(inner, accent, showBranding);
 }
 
-function renderTooMany(accent: string): string {
+function renderTooMany(accent: string, showBranding = true): string {
   const inner = `
   <div class="success">
     <h1>Too many requests</h1>
     <p class="intro">You have submitted several requests recently. Please wait a little while before trying again, or contact the store directly.</p>
   </div>`;
-  return page(inner, accent);
+  return page(inner, accent, showBranding);
 }
 
 // Anti-abuse limits (free, no external service). Generous enough for real
@@ -181,24 +185,42 @@ async function getContext(request: Request) {
   if (!shop) return null;
 
   const url = new URL(request.url);
-  const settings = await prisma.settings.findUnique({ where: { shop } });
+  const [settings, subscription] = await Promise.all([
+    prisma.settings.findUnique({ where: { shop } }),
+    prisma.shopSubscription.findUnique({ where: { shop } }),
+  ]);
+  const isPro = subscription?.plan === "PRO";
   const locale = normalizeLocale(
     url.searchParams.get("locale") || settings?.defaultLocale || "en",
   );
-  return { shop, settings, locale, strings: t(locale), accent: settings?.accentColor || "#2563EB" };
+  return {
+    shop,
+    settings,
+    locale,
+    strings: t(locale),
+    accent: settings?.accentColor || "#2563EB",
+    isPro,
+  };
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const ctx = await getContext(request);
   if (!ctx) return html("Unauthorized", 401);
   return html(
-    renderStep1(ctx.strings, ctx.accent, {}, {}, {
-      title: ctx.settings?.formTitle,
-      intro: ctx.settings?.formIntro,
-      itemsLabel: ctx.settings?.itemsFieldLabel,
-      itemsHelp: ctx.settings?.itemsFieldHelp,
-      excludedNote: ctx.settings?.excludedNote,
-    }),
+    renderStep1(
+      ctx.strings,
+      ctx.accent,
+      {},
+      {},
+      {
+        title: ctx.settings?.formTitle,
+        intro: ctx.settings?.formIntro,
+        itemsLabel: ctx.settings?.itemsFieldLabel,
+        itemsHelp: ctx.settings?.itemsFieldHelp,
+        excludedNote: ctx.settings?.excludedNote,
+      },
+      !ctx.isPro,
+    ),
   );
 }
 
@@ -206,6 +228,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const ctx = await getContext(request);
   if (!ctx) return html("Unauthorized", 401);
   const { shop, locale, strings, accent } = ctx;
+  const showBranding = !ctx.isPro;
 
   const form = await request.formData();
   const step = String(form.get("step") || "");
@@ -228,12 +251,12 @@ export async function action({ request }: ActionFunctionArgs) {
   // success and store nothing.
   const honeypot = String(form.get("company_url") || "").trim();
   if (honeypot && (step === "review" || step === "confirm")) {
-    return html(renderSuccess(strings, accent));
+    return html(renderSuccess(strings, accent, showBranding));
   }
 
   // "Back" button returns to step 1 with values preserved
   if (step === "back") {
-    return html(renderStep1(strings, accent, values, {}, customText));
+    return html(renderStep1(strings, accent, values, {}, customText, showBranding));
   }
 
   // Validate before moving forward
@@ -244,11 +267,11 @@ export async function action({ request }: ActionFunctionArgs) {
   if (!values.items) errors.items = strings.required;
 
   if (Object.keys(errors).length > 0) {
-    return html(renderStep1(strings, accent, values, errors, customText));
+    return html(renderStep1(strings, accent, values, errors, customText, showBranding));
   }
 
   if (step === "review") {
-    return html(renderStep2(strings, accent, values));
+    return html(renderStep2(strings, accent, values, showBranding));
   }
 
   if (step === "confirm") {
@@ -265,13 +288,13 @@ export async function action({ request }: ActionFunctionArgs) {
       const ipCount = await prisma.withdrawalRequest.count({
         where: { shop, ipAddress, createdAt: { gte: since1h } },
       });
-      if (ipCount >= MAX_PER_IP_PER_HOUR) return html(renderTooMany(accent));
+      if (ipCount >= MAX_PER_IP_PER_HOUR) return html(renderTooMany(accent, showBranding));
     }
 
     const emailCount = await prisma.withdrawalRequest.count({
       where: { shop, email: values.email, createdAt: { gte: since24h } },
     });
-    if (emailCount >= MAX_PER_EMAIL_PER_DAY) return html(renderTooMany(accent));
+    if (emailCount >= MAX_PER_EMAIL_PER_DAY) return html(renderTooMany(accent, showBranding));
 
     // Duplicate: same email + order already pending in last 24h -> idempotent.
     const duplicate = await prisma.withdrawalRequest.findFirst({
@@ -283,7 +306,7 @@ export async function action({ request }: ActionFunctionArgs) {
         createdAt: { gte: since24h },
       },
     });
-    if (duplicate) return html(renderSuccess(strings, accent));
+    if (duplicate) return html(renderSuccess(strings, accent, showBranding));
 
     const record = await prisma.withdrawalRequest.create({
       data: {
@@ -331,9 +354,9 @@ export async function action({ request }: ActionFunctionArgs) {
       });
     }
 
-    return html(renderSuccess(strings, accent));
+    return html(renderSuccess(strings, accent, showBranding));
   }
 
   // Unknown step → restart
-  return html(renderStep1(strings, accent, {}, {}, customText));
+  return html(renderStep1(strings, accent, {}, {}, customText, showBranding));
 }

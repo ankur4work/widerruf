@@ -12,9 +12,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       break;
 
-    case "APP_SUBSCRIPTIONS_UPDATE":
-      // Billing status changes handled in Phase 4.
+    case "APP_SUBSCRIPTIONS_UPDATE": {
+      const sub = (payload as any)?.app_subscription;
+      const isActive = sub?.status === "ACTIVE";
+      await prisma.shopSubscription.upsert({
+        where: { shop },
+        update: {
+          plan: isActive ? "PRO" : "FREE",
+          status: sub?.status ?? "ACTIVE",
+          subscriptionId: sub?.admin_graphql_api_id ?? null,
+        },
+        create: { shop, plan: isActive ? "PRO" : "FREE" },
+      });
       break;
+    }
 
     // ---- GDPR / mandatory compliance webhooks (required for App Store) ----
 

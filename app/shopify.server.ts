@@ -4,7 +4,12 @@ import {
   AppDistribution,
   shopifyApp,
   DeliveryMethod,
+  BillingInterval,
 } from "@shopify/shopify-app-remix/server";
+
+// Single paid plan. Free = no billing.
+export const PLAN_PRO = "Pro";
+export const BILLING_TEST = process.env.SHOPIFY_BILLING_TEST !== "false";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 import prisma from "./db.server";
@@ -19,6 +24,18 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   restResources,
+  billing: {
+    [PLAN_PRO]: {
+      lineItems: [
+        {
+          amount: Number(process.env.BILLING_PRO_PRICE || 9),
+          currencyCode: process.env.BILLING_CURRENCY || "EUR",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+      trialDays: Number(process.env.BILLING_PRO_TRIAL_DAYS || 7),
+    },
+  },
   webhooks: {
     APP_UNINSTALLED: {
       deliveryMethod: DeliveryMethod.Http,

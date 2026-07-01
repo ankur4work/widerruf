@@ -170,9 +170,10 @@ function renderTooMany(accent: string): string {
   return page(inner, accent);
 }
 
-// Anti-abuse limits (free, no external service)
-const MAX_PER_IP_PER_HOUR = 5;
-const MAX_PER_EMAIL_PER_DAY = 3;
+// Anti-abuse limits (free, no external service). Generous enough for real
+// customers + testing; the honeypot is the primary bot defense.
+const MAX_PER_IP_PER_HOUR = 10;
+const MAX_PER_EMAIL_PER_DAY = 10;
 
 async function getContext(request: Request) {
   const { session } = await authenticate.public.appProxy(request);

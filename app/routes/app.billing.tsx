@@ -1,4 +1,5 @@
 import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
+import { useEffect } from "react";
 import { useLoaderData, useSubmit, useActionData } from "@remix-run/react";
 import {
   Page,
@@ -16,40 +17,46 @@ import {
 import { authenticate, PLAN_PRO, BILLING_TEST } from "~/shopify.server";
 import prisma from "~/db.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
-
-  let isPro = false;
+// Build the Shopify Managed Pricing page URL (fallback when the Billing API
+// is blocked). Needs the app handle, fetched via the Admin GraphQL.
+async function managedPricingUrl(
+  admin: { graphql: (q: string) => Promise<Response> },
+  shop: string,
+): Promise<string> {
+  let handle = "";
   try {
-    const { hasActivePayment } = await billing.check({
-      plans: [PLAN_PRO],
-      isTest: BILLING_TEST,
-    });
-    isPro = hasActivePayment;
-    await prisma.shopSubscription.upsert({
-      where: { shop: session.shop },
-      update: { plan: isPro ? "PRO" : "FREE" },
-      create: { shop: session.shop, plan: isPro ? "PRO" : "FREE" },
-    });
+    const r = await admin.graphql(
+      `#graphql
+      query { currentAppInstallation { app { handle } } }`,
+    );
+    const d = await r.json();
+    handle = d?.data?.currentAppInstallation?.app?.handle || "";
   } catch (e) {
-    // Fall back to the DB (webhook-synced) if the live check fails.
-    console.error("[billing] check failed, using DB:", e);
-    const sub = await prisma.shopSubscription.findUnique({
-      where: { shop: session.shop },
-    });
-    isPro = sub?.plan === "PRO";
+    console.error("[billing] app handle lookup failed:", e);
   }
+  const store = shop.replace(".myshopify.com", "");
+  return handle
+    ? `https://admin.shopify.com/store/${store}/charges/${handle}/pricing_plans`
+    : "";
+}
 
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+  const sub = await prisma.shopSubscription.findUnique({
+    where: { shop: session.shop },
+  });
+  const pricingUrl = await managedPricingUrl(admin, session.shop);
   return json({
-    isPro,
+    isPro: sub?.plan === "PRO",
     price: Number(process.env.BILLING_PRO_PRICE || 9),
     currency: process.env.BILLING_CURRENCY || "USD",
     trialDays: Number(process.env.BILLING_PRO_TRIAL_DAYS || 7),
+    pricingUrl,
   });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { billing, admin, session } = await authenticate.admin(request);
   const intent = String((await request.formData()).get("intent"));
 
   try {
@@ -69,26 +76,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return redirect("/app/billing");
     }
 
-    // Upgrade: throws a redirect Response to Shopify's approval screen.
+    // Preferred path: Billing API. Throws a redirect Response on success.
     return await billing.request({
       plan: PLAN_PRO,
       isTest: BILLING_TEST,
       returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
     });
   } catch (e) {
-    if (e instanceof Response) throw e; // intended redirect
-    console.error("[billing] action failed:", e);
-    return json({ error: "unavailable" }, { status: 200 });
+    if (e instanceof Response) throw e; // intended redirect — let it through
+    // Billing API blocked (managed pricing). Fall back to the pricing page.
+    console.error("[billing] falling back to managed pricing page:", e);
+    const pricingUrl = await managedPricingUrl(admin, session.shop);
+    return json({ fallback: true, pricingUrl });
   }
 };
 
-// Features that actually work today.
 const PRO_FEATURES = [
   "Remove “Powered by Widerruf” branding from your storefront",
   "Priority support",
 ];
-
-// Planned — clearly labelled so we never charge for something that isn't live.
 const COMING_SOON = [
   "Shopify Returns / refund auto-sync",
   "Auto-cancel unfulfilled orders on withdrawal",
@@ -98,21 +104,31 @@ const COMING_SOON = [
 ];
 
 export default function Billing() {
-  const { isPro, price, currency, trialDays } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
+  const { isPro, price, currency, trialDays, pricingUrl } =
+    useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>() as
+    | { fallback?: boolean; pricingUrl?: string }
+    | undefined;
   const submit = useSubmit();
+
+  // If the Billing API was blocked, open Shopify's plan page in the top frame.
+  useEffect(() => {
+    const url = actionData?.fallback ? actionData?.pricingUrl : "";
+    if (url) window.open(url, "_top");
+  }, [actionData]);
 
   const act = (intent: string) => submit({ intent }, { method: "post" });
   const symbol =
     ({ USD: "$", EUR: "€", GBP: "£" } as Record<string, string>)[currency] ?? "";
   const suffix = symbol ? "" : ` ${currency}`;
+  const fallbackNoUrl = actionData?.fallback && !actionData?.pricingUrl;
 
   return (
     <Page title="Plan & billing">
       <Layout>
-        {(actionData as any)?.error && (
+        {fallbackNoUrl && (
           <Layout.Section>
-            <Banner tone="warning" title="Couldn’t start the upgrade">
+            <Banner tone="warning" title="Couldn’t open the plan page">
               Please reload the app and try again.
             </Banner>
           </Layout.Section>

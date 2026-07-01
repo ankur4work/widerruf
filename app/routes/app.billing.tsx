@@ -16,31 +16,22 @@ import {
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 
+// Fixed app handle (from the app's admin URL). Used to build the Shopify
+// Managed Pricing page link. Overridable via env if the handle ever changes.
+const APP_HANDLE = process.env.SHOPIFY_APP_HANDLE || "widerruf-eu-withdrawal-button";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
 
   // Plan comes from our DB (kept in sync by the APP_SUBSCRIPTIONS_UPDATE webhook).
   const sub = await prisma.shopSubscription.findUnique({
     where: { shop: session.shop },
   });
 
-  // The app uses Shopify Managed Pricing, so we send merchants to Shopify's
-  // hosted plan page. Build its URL from the app handle.
-  let handle = "";
-  try {
-    const r = await admin.graphql(
-      `#graphql
-      query { currentAppInstallation { app { handle } } }`,
-    );
-    const d = await r.json();
-    handle = d?.data?.currentAppInstallation?.app?.handle || "";
-  } catch (e) {
-    console.error("[billing] app handle lookup failed:", e);
-  }
+  // The app uses Shopify Managed Pricing — send merchants to Shopify's hosted
+  // plan page (no API call needed).
   const store = session.shop.replace(".myshopify.com", "");
-  const pricingUrl = handle
-    ? `https://admin.shopify.com/store/${store}/charges/${handle}/pricing_plans`
-    : "";
+  const pricingUrl = `https://admin.shopify.com/store/${store}/charges/${APP_HANDLE}/pricing_plans`;
 
   return json({
     isPro: sub?.plan === "PRO",

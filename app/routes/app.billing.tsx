@@ -32,7 +32,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({
     isPro: hasActivePayment,
     price: Number(process.env.BILLING_PRO_PRICE || 9),
-    currency: process.env.BILLING_CURRENCY || "EUR",
+    currency: process.env.BILLING_CURRENCY || "USD",
     trialDays: Number(process.env.BILLING_PRO_TRIAL_DAYS || 7),
     isTest: BILLING_TEST,
   });
@@ -116,8 +116,9 @@ export default function Billing() {
                   Pro
                 </Text>
                 <Text as="span" variant="headingLg">
-                  {currency === "EUR" ? "€" : ""}
+                  {{ USD: "$", EUR: "€", GBP: "£" }[currency] ?? ""}
                   {price}
+                  {!({ USD: 1, EUR: 1, GBP: 1 } as Record<string, number>)[currency] ? ` ${currency}` : ""}
                   <Text as="span" variant="bodySm" tone="subdued">
                     {" "}
                     / month

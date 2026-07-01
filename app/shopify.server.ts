@@ -29,7 +29,7 @@ const shopify = shopifyApp({
       lineItems: [
         {
           amount: Number(process.env.BILLING_PRO_PRICE || 9),
-          currencyCode: process.env.BILLING_CURRENCY || "EUR",
+          currencyCode: process.env.BILLING_CURRENCY || "USD",
           interval: BillingInterval.Every30Days,
         },
       ],

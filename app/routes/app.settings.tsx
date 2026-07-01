@@ -9,7 +9,6 @@ import {
   FormLayout,
   TextField,
   Select,
-  RangeSlider,
   Button,
   BlockStack,
   Text,
@@ -33,11 +32,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const form = await request.formData();
 
-  const withdrawalDays = Math.min(
-    30,
-    Math.max(14, Number(form.get("withdrawalDays") || 14)),
-  );
-
   await prisma.settings.update({
     where: { shop: session.shop },
     data: {
@@ -48,7 +42,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       formIntro: (form.get("formIntro") as string) || null,
       itemsFieldLabel: (form.get("itemsFieldLabel") as string) || null,
       itemsFieldHelp: (form.get("itemsFieldHelp") as string) || null,
-      withdrawalDays,
       excludedNote: (form.get("excludedNote") as string) || null,
       accentColor: String(form.get("accentColor") || "#2563EB"),
       senderName: (form.get("senderName") as string) || null,
@@ -79,7 +72,6 @@ export default function SettingsPage() {
   const [formIntro, setFormIntro] = useState(settings.formIntro ?? "");
   const [itemsLabel, setItemsLabel] = useState(settings.itemsFieldLabel ?? "");
   const [itemsHelp, setItemsHelp] = useState(settings.itemsFieldHelp ?? "");
-  const [withdrawalDays, setWithdrawalDays] = useState(settings.withdrawalDays);
   const [excludedNote, setExcludedNote] = useState(settings.excludedNote ?? "");
   const [accentColor, setAccentColor] = useState(settings.accentColor);
   const [senderName, setSenderName] = useState(settings.senderName ?? "");
@@ -96,7 +88,6 @@ export default function SettingsPage() {
     fd.set("formIntro", formIntro);
     fd.set("itemsFieldLabel", itemsLabel);
     fd.set("itemsFieldHelp", itemsHelp);
-    fd.set("withdrawalDays", String(withdrawalDays));
     fd.set("excludedNote", excludedNote);
     fd.set("accentColor", accentColor);
     fd.set("senderName", senderName);
@@ -232,16 +223,8 @@ export default function SettingsPage() {
           <Card>
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">
-                Compliance
+                Appearance
               </Text>
-              <RangeSlider
-                label={`Withdrawal window: ${withdrawalDays} days`}
-                min={14}
-                max={30}
-                value={withdrawalDays}
-                onChange={(v) => setWithdrawalDays(Array.isArray(v) ? v[0] : v)}
-                output
-              />
               <TextField
                 label="Accent color"
                 value={accentColor}

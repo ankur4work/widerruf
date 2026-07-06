@@ -1,7 +1,16 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
-import { authenticate } from "~/shopify.server";
+import { authenticate, unauthenticated } from "~/shopify.server";
 import prisma from "~/db.server";
-import { t, normalizeLocale, type Strings } from "~/lib/i18n";
+import { verifyOrder, type OrderVerifyResult } from "~/lib/orders.server";
+import {
+  t,
+  normalizeLocale,
+  reasonOptions,
+  reasonUi,
+  reasonLabel,
+  isReasonCode,
+  type Strings,
+} from "~/lib/i18n";
 import { sendWithdrawalConfirmation } from "~/lib/email.server";
 
 /**
@@ -20,6 +29,7 @@ interface FormValues {
   email: string;
   orderRef: string;
   items: string;
+  reason: string;
 }
 
 function esc(s: string): string {
@@ -38,10 +48,15 @@ function html(body: string, status = 200): Response {
   });
 }
 
+const PRIVACY_URL =
+  (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "") + "/privacy";
+
 function page(inner: string, accent: string, showBranding = true): string {
-  const footer = showBranding
-    ? `Powered by Widerruf — EU Directive 2023/2673 withdrawal function.`
-    : `EU Directive 2023/2673 withdrawal function.`;
+  const privacyLink = ` · <a href="${esc(PRIVACY_URL)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Privacy</a>`;
+  const footer =
+    (showBranding
+      ? `Powered by Widerruf — EU Directive 2023/2673 withdrawal function.`
+      : `EU Directive 2023/2673 withdrawal function.`) + privacyLink;
   return `<!doctype html>
 <html>
 <head>
@@ -61,10 +76,12 @@ function page(inner: string, accent: string, showBranding = true): string {
   p.intro { color: #5b5b6b; margin: 0 0 22px; font-size: 14px; line-height: 1.55; }
   label { display: block; font-weight: 600; font-size: 13px; margin: 18px 0 7px; color: #2a2a38; }
   .help { font-weight: 400; color: #8a8a98; font-size: 12px; margin: 5px 0 0; }
-  input, textarea { width: 100%; padding: 11px 13px; border: 1px solid #d7d7e0; border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
-  input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  input, textarea, select { width: 100%; padding: 11px 13px; border: 1px solid #d7d7e0; border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
+  select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238a8a98' d='M6 8L2 4h8z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
   textarea { min-height: 92px; resize: vertical; }
   .err { color: #d72c4d; font-size: 13px; margin: 6px 0 0; }
+  .warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 13px; border-radius: 10px; padding: 10px 12px; margin: 0 0 18px; line-height: 1.5; }
   .btn { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 24px; box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent); transition: transform .08s ease, filter .15s ease, box-shadow .15s ease; }
   .btn:hover { filter: brightness(1.07); box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 45%, transparent); }
   .btn:active { transform: translateY(1px); }
@@ -97,7 +114,26 @@ function renderStep1(
   errors: Record<string, string> = {},
   custom: { title?: string | null; intro?: string | null; itemsLabel?: string | null; itemsHelp?: string | null; excludedNote?: string | null } = {},
   showBranding = true,
+  reason: { collect: boolean; locale: string } = { collect: false, locale: "en" },
 ): string {
+  let reasonField = "";
+  if (reason.collect) {
+    const ui = reasonUi(reason.locale);
+    const opts = reasonOptions(reason.locale)
+      .map(
+        (o) =>
+          `<option value="${esc(o.code)}"${values.reason === o.code ? " selected" : ""}>${esc(o.label)}</option>`,
+      )
+      .join("");
+    reasonField = `
+    <label>${esc(ui.label)}
+      <select name="reason">
+        <option value="">${esc(ui.placeholder)}</option>
+        ${opts}
+      </select>
+      <span class="help">${esc(ui.help)}</span>
+    </label>`;
+  }
   const inner = `
   <p class="step">Step 1 of 2</p>
   <h1>${esc(custom.title || s.formTitle)}</h1>
@@ -115,11 +151,13 @@ function renderStep1(
     <label>${esc(s.orderLabel)}
       <input type="text" name="orderRef" value="${esc(values.orderRef || "")}">
     </label>
+    ${errors.orderRef ? `<p class="err">${esc(errors.orderRef)}</p>` : ""}
     <label>${esc(custom.itemsLabel || s.itemsLabel)}
       <textarea name="items" required>${esc(values.items || "")}</textarea>
       <span class="help">${esc(custom.itemsHelp || s.itemsHelp)}</span>
     </label>
     ${errors.items ? `<p class="err">${esc(errors.items)}</p>` : ""}
+    ${reasonField}
     ${custom.excludedNote ? `<p class="help" style="margin-top:14px">${esc(custom.excludedNote)}</p>` : ""}
     <input type="text" name="company_url" tabindex="-1" autocomplete="off" aria-hidden="true" value="" style="position:absolute!important;left:-9999px!important;top:-9999px!important;height:1px;width:1px;opacity:0;pointer-events:none">
     <button class="btn" type="submit">${esc(s.continueButton)}</button>
@@ -127,18 +165,30 @@ function renderStep1(
   return page(inner, accent, showBranding);
 }
 
-function renderStep2(s: Strings, accent: string, v: FormValues, showBranding = true): string {
+function renderStep2(
+  s: Strings,
+  accent: string,
+  v: FormValues,
+  showBranding = true,
+  locale = "en",
+  warning = "",
+): string {
   const hidden = (name: string, val: string) =>
     `<input type="hidden" name="${name}" value="${esc(val)}">`;
+  const reasonText = v.reason ? reasonLabel(v.reason, locale) : "";
+  const ui = reasonUi(locale);
+  const warn = warning ? `<p class="warn">${esc(warning)}</p>` : "";
   const inner = `
   <p class="step">Step 2 of 2</p>
   <h1>${esc(s.reviewTitle)}</h1>
   <p class="intro">${esc(s.reviewHint)}</p>
+  ${warn}
   <dl>
     <dt>${esc(s.nameLabel)}</dt><dd>${esc(v.customerName)}</dd>
     <dt>${esc(s.emailLabel)}</dt><dd>${esc(v.email)}</dd>
     ${v.orderRef ? `<dt>${esc(s.orderLabel)}</dt><dd>${esc(v.orderRef)}</dd>` : ""}
     <dt>${esc(s.itemsLabel)}</dt><dd>${esc(v.items)}</dd>
+    ${reasonText ? `<dt>${esc(ui.label.replace(/\s*\(.*\)$/, ""))}</dt><dd>${esc(reasonText)}</dd>` : ""}
   </dl>
   <form method="post">
     <input type="hidden" name="step" value="confirm">
@@ -146,6 +196,7 @@ function renderStep2(s: Strings, accent: string, v: FormValues, showBranding = t
     ${hidden("email", v.email)}
     ${hidden("orderRef", v.orderRef)}
     ${hidden("items", v.items)}
+    ${hidden("reason", v.reason)}
     <input type="text" name="company_url" tabindex="-1" autocomplete="off" aria-hidden="true" value="" style="position:absolute!important;left:-9999px!important;top:-9999px!important;height:1px;width:1px;opacity:0;pointer-events:none">
     <div class="row">
       <button class="btn secondary" type="submit" name="step" value="back">${esc(s.backButton)}</button>
@@ -200,7 +251,42 @@ async function getContext(request: Request) {
     strings: t(locale),
     accent: settings?.accentColor || "#2563EB",
     isPro,
+    collectReason: settings?.collectReason ?? true,
+    requireValidOrder: settings?.requireValidOrder ?? false,
   };
+}
+
+// Localized validation messages (en/de, else en).
+const VALIDATION_MSG: Record<string, { notFound: string; softWarn: string }> = {
+  en: {
+    notFound:
+      "We couldn't find an order with that number and email. Please check the order number.",
+    softWarn:
+      "We couldn't confirm this order number, but you can still submit your withdrawal.",
+  },
+  de: {
+    notFound:
+      "Wir konnten keine Bestellung mit dieser Nummer und E-Mail-Adresse finden. Bitte überprüfen Sie die Bestellnummer.",
+    softWarn:
+      "Wir konnten diese Bestellnummer nicht bestätigen, Sie können den Widerruf dennoch absenden.",
+  },
+};
+function vmsg(locale: string) {
+  return VALIDATION_MSG[normalizeLocale(locale)] || VALIDATION_MSG.en;
+}
+
+/** Look up the order (number + email) using the shop's offline admin token. */
+async function checkOrder(
+  shop: string,
+  orderRef: string,
+  email: string,
+): Promise<OrderVerifyResult> {
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    return await verifyOrder(admin, orderRef, email);
+  } catch {
+    return { status: "UNAVAILABLE" };
+  }
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -220,6 +306,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         excludedNote: ctx.settings?.excludedNote,
       },
       !ctx.isPro,
+      { collect: ctx.collectReason, locale: ctx.locale },
     ),
   );
 }
@@ -229,14 +316,18 @@ export async function action({ request }: ActionFunctionArgs) {
   if (!ctx) return html("Unauthorized", 401);
   const { shop, locale, strings, accent } = ctx;
   const showBranding = !ctx.isPro;
+  const reasonCfg = { collect: ctx.collectReason, locale };
 
   const form = await request.formData();
   const step = String(form.get("step") || "");
+  const rawReason = String(form.get("reason") || "").trim();
   const values: FormValues = {
     customerName: String(form.get("customerName") || "").trim(),
     email: String(form.get("email") || "").trim(),
     orderRef: String(form.get("orderRef") || "").trim(),
     items: String(form.get("items") || "").trim(),
+    // Only accept a known code; ignore anything else (bots / tampering).
+    reason: isReasonCode(rawReason) ? rawReason : "",
   };
 
   const customText = {
@@ -256,7 +347,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // "Back" button returns to step 1 with values preserved
   if (step === "back") {
-    return html(renderStep1(strings, accent, values, {}, customText, showBranding));
+    return html(renderStep1(strings, accent, values, {}, customText, showBranding, reasonCfg));
   }
 
   // Validate before moving forward
@@ -267,11 +358,33 @@ export async function action({ request }: ActionFunctionArgs) {
   if (!values.items) errors.items = strings.required;
 
   if (Object.keys(errors).length > 0) {
-    return html(renderStep1(strings, accent, values, errors, customText, showBranding));
+    return html(renderStep1(strings, accent, values, errors, customText, showBranding, reasonCfg));
   }
 
   if (step === "review") {
-    return html(renderStep2(strings, accent, values, showBranding));
+    // Order check (number + email). Fails open on our outage so a real customer
+    // is never wrongly blocked. Strict mode blocks; otherwise we only warn.
+    let warning = "";
+    if (values.orderRef) {
+      const check = await checkOrder(shop, values.orderRef, values.email);
+      if (check.status === "NO_ORDER" || check.status === "EMAIL_MISMATCH") {
+        if (ctx.requireValidOrder) {
+          return html(
+            renderStep1(
+              strings,
+              accent,
+              values,
+              { orderRef: vmsg(locale).notFound },
+              customText,
+              showBranding,
+              reasonCfg,
+            ),
+          );
+        }
+        warning = vmsg(locale).softWarn;
+      }
+    }
+    return html(renderStep2(strings, accent, values, showBranding, locale, warning));
   }
 
   if (step === "confirm") {
@@ -296,6 +409,32 @@ export async function action({ request }: ActionFunctionArgs) {
     });
     if (emailCount >= MAX_PER_EMAIL_PER_DAY) return html(renderTooMany(accent, showBranding));
 
+    // Server-side order check (never trust a client-supplied order id). Captures
+    // the matched order for later automation; enforces strict mode.
+    let matchedOrderGid: string | null = null;
+    if (values.orderRef) {
+      const check = await checkOrder(shop, values.orderRef, values.email);
+      if (check.status === "MATCH") {
+        matchedOrderGid = check.orderGid ?? null;
+      } else if (
+        ctx.requireValidOrder &&
+        (check.status === "NO_ORDER" || check.status === "EMAIL_MISMATCH")
+      ) {
+        // Strict mode: bounce back to step 1 (fail open on UNAVAILABLE).
+        return html(
+          renderStep1(
+            strings,
+            accent,
+            values,
+            { orderRef: vmsg(locale).notFound },
+            customText,
+            showBranding,
+            reasonCfg,
+          ),
+        );
+      }
+    }
+
     // Duplicate: same email + order already pending in last 24h -> idempotent.
     const duplicate = await prisma.withdrawalRequest.findFirst({
       where: {
@@ -315,6 +454,8 @@ export async function action({ request }: ActionFunctionArgs) {
         email: values.email,
         orderRef: values.orderRef || null,
         itemsDescription: values.items,
+        reason: values.reason || null,
+        orderGid: matchedOrderGid,
         locale,
         status: "PENDING",
         ipAddress,
@@ -338,6 +479,7 @@ export async function action({ request }: ActionFunctionArgs) {
       customerName: values.customerName,
       orderRef: values.orderRef,
       itemsDescription: values.items,
+      reason: values.reason ? reasonLabel(values.reason, locale) : null,
       receivedAt,
       fromName: ctx.settings?.senderName,
       replyTo: ctx.settings?.emailReplyTo,
@@ -358,5 +500,5 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   // Unknown step → restart
-  return html(renderStep1(strings, accent, {}, {}, customText, showBranding));
+  return html(renderStep1(strings, accent, {}, {}, customText, showBranding, reasonCfg));
 }

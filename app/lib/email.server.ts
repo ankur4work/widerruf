@@ -1,5 +1,10 @@
 import nodemailer from "nodemailer";
-import { t } from "./i18n";
+import { t, reasonUi } from "./i18n";
+
+/** "Reason" label without the "(optional)" hint, for records/emails. */
+function reasonFieldLabel(locale: string): string {
+  return reasonUi(locale).label.replace(/\s*\(.*\)$/, "");
+}
 
 /**
  * Withdrawal emails (durable-medium proof + outcome notifications).
@@ -84,6 +89,7 @@ function row(label: string, value: string): string {
 export interface ConfirmationInput extends BaseInput {
   orderRef?: string | null;
   itemsDescription?: string | null;
+  reason?: string | null; // already-localized reason label
   receivedAt: Date;
 }
 
@@ -132,6 +138,7 @@ export async function sendWithdrawalConfirmation(
     `${s.nameLabel}: ${input.customerName}`,
     input.orderRef ? `${s.orderLabel}: ${input.orderRef}` : null,
     input.itemsDescription ? `${s.itemsLabel}: ${input.itemsDescription}` : null,
+    input.reason ? `${reasonFieldLabel(input.locale)}: ${input.reason}` : null,
     "",
     `Received at (UTC): ${received}`,
     "",
@@ -146,6 +153,7 @@ export async function sendWithdrawalConfirmation(
     row(s.nameLabel, input.customerName),
     input.orderRef ? row(s.orderLabel, input.orderRef) : "",
     input.itemsDescription ? row(s.itemsLabel, input.itemsDescription) : "",
+    input.reason ? row(reasonFieldLabel(input.locale), input.reason) : "",
     row("Received (UTC)", received),
   ].join("");
   const html = htmlShell({
@@ -187,6 +195,38 @@ const OUTCOME_TEXT: Record<
       "Ihr Widerrufsantrag konnte nicht angenommen werden. Bitte antworten Sie auf diese E-Mail, falls Sie Fragen haben.",
   },
 };
+
+/**
+ * Sends a merchant-authored decision email (exact subject + body the merchant
+ * reviewed and edited in the dashboard). Body is plain text; we wrap it in the
+ * branded shell and convert newlines to <br>.
+ */
+export async function sendDecisionEmail(
+  input: BaseInput & { subject: string; body: string; heading?: string },
+): Promise<boolean> {
+  const storeName = input.fromName || input.shop;
+  const bodyHtml = `<div style="font-size:14px;line-height:1.6;color:#2a2a38;white-space:normal;">${esc(
+    input.body,
+  )
+    .split("\n")
+    .join("<br>")}</div>`;
+
+  const html = htmlShell({
+    accent: input.accent || "#2563EB",
+    storeName,
+    heading: input.heading || input.subject,
+    bodyHtml,
+  });
+
+  return send({
+    from: buildFrom(input.fromName, input.customFrom),
+    to: input.to,
+    replyTo: input.replyTo,
+    subject: input.subject,
+    text: input.body,
+    html,
+  });
+}
 
 /** Notifies the customer of the merchant's decision (processed / rejected). */
 export async function sendOutcomeNotification(

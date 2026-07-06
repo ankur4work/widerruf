@@ -43,16 +43,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const PRO_FEATURES = [
+  "Refund auto-sync — issue a full refund when you process a withdrawal",
+  "Auto-cancel unfulfilled orders on withdrawal (with restock)",
+  "Send confirmation emails from your own domain",
+  "PDF evidence packs + bulk CSV/PDF export",
+  "Analytics & withdrawal reasons",
   "Remove “Powered by Widerruf” branding from your storefront",
   "Priority support",
 ];
-const COMING_SOON = [
-  "Shopify Returns / refund auto-sync",
-  "Auto-cancel unfulfilled orders on withdrawal",
-  "Send emails from your own domain",
-  "PDF evidence packs + bulk export",
-  "Analytics & withdrawal reasons",
-];
+const COMING_SOON: string[] = [];
 
 export default function Billing() {
   const { isPro, price, currency, trialDays, pricingUrl } =
@@ -112,16 +111,18 @@ export default function Billing() {
                   <List.Item key={f}>{f}</List.Item>
                 ))}
               </List>
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingSm">
-                  Coming soon
-                </Text>
-                {COMING_SOON.map((f) => (
-                  <Text key={f} as="p" variant="bodyMd" tone="subdued">
-                    • {f}
+              {COMING_SOON.length > 0 && (
+                <BlockStack gap="100">
+                  <Text as="h3" variant="headingSm">
+                    Coming soon
                   </Text>
-                ))}
-              </BlockStack>
+                  {COMING_SOON.map((f) => (
+                    <Text key={f} as="p" variant="bodyMd" tone="subdued">
+                      • {f}
+                    </Text>
+                  ))}
+                </BlockStack>
+              )}
               <Divider />
               {isPro ? (
                 <InlineStack gap="300" blockAlign="center">

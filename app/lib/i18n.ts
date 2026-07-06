@@ -203,6 +203,86 @@ export function normalizeLocale(input?: string | null): string {
   return SUPPORTED_LOCALES.includes(code) ? code : "en";
 }
 
+// ---------------------------------------------------------------------------
+// Withdrawal reasons (optional field → powers analytics).
+// Codes are stable/language-independent; labels are localized (en/de, else en).
+// ---------------------------------------------------------------------------
+
+export const WITHDRAWAL_REASON_CODES = [
+  "CHANGED_MIND",
+  "BETTER_PRICE",
+  "ARRIVED_LATE",
+  "NOT_AS_DESCRIBED",
+  "DAMAGED",
+  "WRONG_ITEM",
+  "QUALITY",
+  "NO_LONGER_NEEDED",
+  "OTHER",
+] as const;
+
+export type WithdrawalReasonCode = (typeof WITHDRAWAL_REASON_CODES)[number];
+
+const REASON_LABELS: Record<string, Record<WithdrawalReasonCode, string>> = {
+  en: {
+    CHANGED_MIND: "Changed my mind",
+    BETTER_PRICE: "Found a better price elsewhere",
+    ARRIVED_LATE: "Arrived too late",
+    NOT_AS_DESCRIBED: "Not as described",
+    DAMAGED: "Damaged or defective",
+    WRONG_ITEM: "Wrong item received",
+    QUALITY: "Quality not as expected",
+    NO_LONGER_NEEDED: "No longer needed",
+    OTHER: "Other",
+  },
+  de: {
+    CHANGED_MIND: "Meinung geändert",
+    BETTER_PRICE: "Woanders günstiger gefunden",
+    ARRIVED_LATE: "Zu spät geliefert",
+    NOT_AS_DESCRIBED: "Nicht wie beschrieben",
+    DAMAGED: "Beschädigt oder defekt",
+    WRONG_ITEM: "Falscher Artikel erhalten",
+    QUALITY: "Qualität nicht wie erwartet",
+    NO_LONGER_NEEDED: "Wird nicht mehr benötigt",
+    OTHER: "Sonstiges",
+  },
+};
+
+// Form microcopy for the reason field (en/de, else en).
+const REASON_UI: Record<string, { label: string; help: string; placeholder: string }> = {
+  en: {
+    label: "Reason for withdrawal (optional)",
+    help: "This helps the store improve. It does not affect your right of withdrawal.",
+    placeholder: "Select a reason…",
+  },
+  de: {
+    label: "Grund für den Widerruf (optional)",
+    help: "Das hilft dem Shop, sich zu verbessern. Ihr Widerrufsrecht bleibt davon unberührt.",
+    placeholder: "Grund auswählen…",
+  },
+};
+
+export function isReasonCode(v?: string | null): v is WithdrawalReasonCode {
+  return !!v && (WITHDRAWAL_REASON_CODES as readonly string[]).includes(v);
+}
+
+/** Localized label for a reason code (falls back to en, then the raw code). */
+export function reasonLabel(code?: string | null, locale?: string | null): string {
+  if (!code) return "";
+  const lang = normalizeLocale(locale);
+  const table = REASON_LABELS[lang] || REASON_LABELS.en;
+  return table[code as WithdrawalReasonCode] || REASON_LABELS.en[code as WithdrawalReasonCode] || code;
+}
+
+/** Ordered {code,label} options for a locale. */
+export function reasonOptions(locale?: string | null): { code: WithdrawalReasonCode; label: string }[] {
+  return WITHDRAWAL_REASON_CODES.map((code) => ({ code, label: reasonLabel(code, locale) }));
+}
+
+/** Form microcopy for the reason field. */
+export function reasonUi(locale?: string | null) {
+  return REASON_UI[normalizeLocale(locale)] || REASON_UI.en;
+}
+
 /** Returns a complete Strings object for the locale, English-filled. */
 export function t(locale?: string | null): Strings {
   const code = normalizeLocale(locale);

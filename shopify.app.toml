@@ -18,8 +18,9 @@ api_version = "2024-01"
   shop_deletion_url = "https://widerruf.onkra.online/webhooks"
 
 [access_scopes]
-# read_orders lets us match/show order details on withdrawal; expand later for Returns sync (write_orders)
-scopes = "read_orders"
+# read_orders: match/show order details on withdrawal.
+# write_orders: PRO automation — auto-cancel unfulfilled orders + create refunds on processing.
+scopes = "read_orders,write_orders"
 
 [auth]
 redirect_urls = [ "https://widerruf.onkra.online/auth/callback" ]

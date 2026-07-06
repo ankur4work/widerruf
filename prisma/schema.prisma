@@ -68,6 +68,20 @@ model Settings {
   emailReplyTo    String?  // merchant reply-to address (FREE)
   emailFrom       String?  // full custom From on own domain (PRO)
 
+  // Storefront form behaviour
+  collectReason   Boolean  @default(true)   // show the "reason for withdrawal" select
+  requireValidOrder Boolean @default(false) // block submit unless order number + email match a real order
+
+  // Order automation (all PRO; each independently opt-in)
+  autoCancelUnfulfilled Boolean @default(false) // cancel matched order if unfulfilled, on PROCESSED
+  autoRefundOnProcess   Boolean @default(false) // create a refund on the matched order, on PROCESSED
+
+  // Editable decision-email templates ({{customer_name}} {{store_name}} {{reason}} {{order}})
+  emailProcessedSubject String?
+  emailProcessedBody    String?
+  emailRejectedSubject  String?
+  emailRejectedBody     String?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -84,6 +98,8 @@ model WithdrawalRequest {
   email            String
   orderRef         String?   // order number/name the customer entered
   itemsDescription String?   // what they want to withdraw (text — works for goods + digital)
+  reason           String?   // reason code (see i18n WITHDRAWAL_REASONS); analytics + insight
+  decisionNote     String?   // merchant's reason/note for the accept or reject decision
 
   locale           String    @default("en")
   status           String    @default("PENDING") // PENDING | PROCESSED | REJECTED
@@ -91,6 +107,11 @@ model WithdrawalRequest {
   // Durable-medium proof
   confirmationSentAt DateTime?
   pdfGeneratedAt     DateTime?
+
+  // Shopify order automation (PRO) — set when the merchant processes the request
+  orderGid         String?   // matched Shopify order GID (gid://shopify/Order/…)
+  orderCancelledAt DateTime? // set when we auto-cancelled the order
+  refundedAt       DateTime? // set when we created a refund on the order
 
   // Audit metadata (timestamp is the legally important "received at")
   ipAddress        String?
@@ -111,7 +132,7 @@ model AuditEvent {
   id          String            @id @default(cuid())
   request     WithdrawalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   requestId   String
-  type        String            // CREATED | CONFIRMATION_SENT | STATUS_CHANGED | PDF_GENERATED
+  type        String            // CREATED | CONFIRMATION_SENT | STATUS_CHANGED | PDF_GENERATED | ORDER_CANCELLED | REFUND_CREATED | EXPORTED
   payloadJson String?           // JSON snapshot
   createdAt   DateTime          @default(now())
 

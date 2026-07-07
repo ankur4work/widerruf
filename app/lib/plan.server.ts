@@ -19,8 +19,9 @@ export async function syncPlanFromShopify(
   admin: AdminLike,
   shop: string,
 ): Promise<"FREE" | "PRO"> {
+  let res: Response;
   try {
-    const res = await admin.graphql(`#graphql
+    res = await admin.graphql(`#graphql
       query CurrentPlan {
         currentAppInstallation {
           activeSubscriptions {
@@ -39,6 +40,23 @@ export async function syncPlanFromShopify(
           }
         }
       }`);
+  } catch (thrown: any) {
+    // shopify-app-remix throws a Response (redirect/401) when the access token
+    // needs re-auth — usually a stale token after a scope change (needs reinstall).
+    if (thrown instanceof Response) {
+      const loc = thrown.headers.get("location");
+      const body = await thrown.clone().text().catch(() => "");
+      console.error(
+        `[syncPlan] graphql THREW Response status=${thrown.status} location=${loc} body=${body.slice(0, 250)}`,
+      );
+    } else {
+      console.error(`[syncPlan] graphql threw (non-Response) shop=${shop}:`, thrown?.message || thrown);
+    }
+    const sub = await prisma.shopSubscription.findUnique({ where: { shop } });
+    return sub?.plan === "PRO" ? "PRO" : "FREE";
+  }
+
+  try {
     const data = (await res.json()) as any;
     const subs: any[] = data?.data?.currentAppInstallation?.activeSubscriptions ?? [];
 

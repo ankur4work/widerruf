@@ -16,6 +16,7 @@ import {
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { reasonLabel } from "~/lib/i18n";
+import { syncPlanFromShopify } from "~/lib/plan.server";
 
 const MS_PER_HOUR = 3600 * 1000;
 
@@ -24,11 +25,10 @@ function monthKey(d: Date): string {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const sub = await prisma.shopSubscription.findUnique({ where: { shop } });
-  const isPro = sub?.plan === "PRO";
+  const isPro = (await syncPlanFromShopify(admin, shop)) === "PRO";
 
   // Headline count is cheap and shown to everyone.
   const total = await prisma.withdrawalRequest.count({ where: { shop } });

@@ -21,29 +21,27 @@ import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { SUPPORTED_LOCALES, t } from "~/lib/i18n";
 import { defaultDecisionTemplate } from "~/lib/email-templates";
+import { syncPlanFromShopify } from "~/lib/plan.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const [settings, sub] = await Promise.all([
+  const { session, admin } = await authenticate.admin(request);
+  const [settings, plan] = await Promise.all([
     prisma.settings.upsert({
       where: { shop: session.shop },
       update: {},
       create: { shop: session.shop },
     }),
-    prisma.shopSubscription.findUnique({ where: { shop: session.shop } }),
+    syncPlanFromShopify(admin, session.shop),
   ]);
-  return json({ settings, isPro: sub?.plan === "PRO" });
+  return json({ settings, isPro: plan === "PRO" });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const form = await request.formData();
 
   // Pro-gated fields are only persisted for Pro shops (never trust the client).
-  const sub = await prisma.shopSubscription.findUnique({
-    where: { shop: session.shop },
-  });
-  const isPro = sub?.plan === "PRO";
+  const isPro = (await syncPlanFromShopify(admin, session.shop)) === "PRO";
 
   const bool = (name: string) => form.get(name) === "true";
 

@@ -14,19 +14,18 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate } from "~/shopify.server";
-import prisma from "~/db.server";
+import { syncPlanFromShopify } from "~/lib/plan.server";
 
 // Fixed app handle (from the app's admin URL). Used to build the Shopify
 // Managed Pricing page link. Overridable via env if the handle ever changes.
 const APP_HANDLE = process.env.SHOPIFY_APP_HANDLE || "widerruf-eu-withdrawal-button";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
-  // Plan comes from our DB (kept in sync by the APP_SUBSCRIPTIONS_UPDATE webhook).
-  const sub = await prisma.shopSubscription.findUnique({
-    where: { shop: session.shop },
-  });
+  // Source of truth: ask Shopify directly for the active subscription (the
+  // Managed Pricing webhook is unreliable) and sync our DB.
+  const plan = await syncPlanFromShopify(admin, session.shop);
 
   // The app uses Shopify Managed Pricing — send merchants to Shopify's hosted
   // plan page (no API call needed).
@@ -34,7 +33,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const pricingUrl = `https://admin.shopify.com/store/${store}/charges/${APP_HANDLE}/pricing_plans`;
 
   return json({
-    isPro: sub?.plan === "PRO",
+    isPro: plan === "PRO",
     price: Number(process.env.BILLING_PRO_PRICE || 9),
     currency: process.env.BILLING_CURRENCY || "USD",
     trialDays: Number(process.env.BILLING_PRO_TRIAL_DAYS || 7),

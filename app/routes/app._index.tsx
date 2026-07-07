@@ -24,6 +24,7 @@ import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { sendDecisionEmail } from "~/lib/email.server";
 import { runWithdrawalAutomation, verifyOrder } from "~/lib/orders.server";
+import { syncPlanFromShopify } from "~/lib/plan.server";
 import { reasonLabel } from "~/lib/i18n";
 import {
   defaultDecisionTemplate,
@@ -37,14 +38,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [requests, pendingCount, sub, settings] = await Promise.all([
+  const [requests, pendingCount, planNow, settings] = await Promise.all([
     prisma.withdrawalRequest.findMany({
       where: { shop },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
     prisma.withdrawalRequest.count({ where: { shop, status: "PENDING" } }),
-    prisma.shopSubscription.findUnique({ where: { shop } }),
+    syncPlanFromShopify(admin, shop),
     prisma.settings.findUnique({ where: { shop } }),
   ]);
 
@@ -84,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       confirmationSentAt: r.confirmationSentAt?.toISOString() ?? null,
     })),
     pendingCount,
-    plan: sub?.plan ?? "FREE",
+    plan: planNow,
     configured: Boolean(settings),
     storeName: settings?.senderName || shop,
     templates: {

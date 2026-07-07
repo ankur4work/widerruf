@@ -134,7 +134,8 @@ export async function verifyOrder(
       return { status: "MATCH", orderGid: match.node.id, orderName: match.node.name };
     }
     return { status: "EMAIL_MISMATCH", orderName: edges[0].node.name };
-  } catch {
+  } catch (err) {
+    console.error("[verifyOrder] admin query failed:", err);
     return { status: "UNAVAILABLE" };
   }
 }

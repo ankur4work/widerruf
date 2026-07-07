@@ -100,6 +100,7 @@ model WithdrawalRequest {
   itemsDescription String?   // what they want to withdraw (text — works for goods + digital)
   reason           String?   // reason code (see i18n WITHDRAWAL_REASONS); analytics + insight
   decisionNote     String?   // merchant's reason/note for the accept or reject decision
+  orderCheck       String?   // order+email verification: MATCH | NO_ORDER | EMAIL_MISMATCH | UNAVAILABLE
 
   locale           String    @default("en")
   status           String    @default("PENDING") // PENDING | PROCESSED | REJECTED

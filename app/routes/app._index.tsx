@@ -23,7 +23,7 @@ import {
 import { authenticate } from "~/shopify.server";
 import prisma from "~/db.server";
 import { sendDecisionEmail } from "~/lib/email.server";
-import { runWithdrawalAutomation } from "~/lib/orders.server";
+import { runWithdrawalAutomation, verifyOrder } from "~/lib/orders.server";
 import { reasonLabel } from "~/lib/i18n";
 import {
   defaultDecisionTemplate,
@@ -34,7 +34,7 @@ import {
 import type { WithdrawalStatus } from "~/lib/types";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
   const [requests, pendingCount, sub, settings] = await Promise.all([
@@ -48,12 +48,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prisma.settings.findUnique({ where: { shop } }),
   ]);
 
+  // Reliable order verification from the admin context (the app-proxy path can
+  // lack an offline token). Verify pending requests that have an order number but
+  // no cached result yet; cap the number of API calls per load.
+  const toVerify = requests
+    .filter((r) => r.status === "PENDING" && r.orderRef && (!r.orderCheck || r.orderCheck === "UNAVAILABLE"))
+    .slice(0, 25);
+  for (const r of toVerify) {
+    try {
+      const res = await verifyOrder(admin, r.orderRef!, r.email);
+      r.orderCheck = res.status;
+      if (res.status !== "UNAVAILABLE") {
+        await prisma.withdrawalRequest.update({
+          where: { id: r.id },
+          data: { orderCheck: res.status, ...(res.orderGid ? { orderGid: res.orderGid } : {}) },
+        });
+      }
+    } catch (e) {
+      console.error(`[dashboard verify] req=${r.id}`, e);
+    }
+  }
+
   return json({
     requests: requests.map((r) => ({
       id: r.id,
       customerName: r.customerName,
       email: r.email,
       orderRef: r.orderRef,
+      orderCheck: r.orderCheck,
       reason: r.reason,
       locale: r.locale,
       status: r.status,
@@ -200,6 +222,14 @@ function statusBadge(status: string) {
   return <Badge tone="attention">Pending</Badge>;
 }
 
+/** Badge showing whether the request references a real order (spam signal). */
+function orderBadge(check: string | null | undefined) {
+  if (check === "MATCH") return <Badge tone="success" size="small">Verified</Badge>;
+  if (check === "NO_ORDER") return <Badge tone="critical" size="small">No match</Badge>;
+  if (check === "EMAIL_MISMATCH") return <Badge tone="warning" size="small">Email mismatch</Badge>;
+  return null;
+}
+
 type RequestRow = ReturnType<typeof useLoaderData<typeof loader>>["requests"][number];
 
 export default function Dashboard() {
@@ -215,6 +245,27 @@ export default function Dashboard() {
       shopify.toast.show("Request updated");
     }
   }, [actionData, shopify]);
+
+  // Downloads must be fetched in-app: App Bridge patches fetch() to include the
+  // session token, so the resource route authenticates. A plain new-tab link
+  // loses the token and lands on the login page.
+  async function downloadFile(url: string, filename: string) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch {
+      shopify.toast.show("Download failed — please try again", { isError: true });
+    }
+  }
 
   // --- Decision modal (accept / reject with editable email) ---
   const [target, setTarget] = useState<RequestRow | null>(null);
@@ -285,18 +336,18 @@ export default function Dashboard() {
       secondaryActions={
         requests.length > 0
           ? [
-              {
-                content: "Export CSV",
-                url: "/app/export?format=csv",
-                target: "_blank",
-                helpText: isPro ? undefined : "Pro",
-              },
-              {
-                content: "Export PDF pack",
-                url: "/app/export?format=pdf",
-                target: "_blank",
-                helpText: isPro ? undefined : "Pro",
-              },
+              isPro
+                ? {
+                    content: "Export CSV",
+                    onAction: () => downloadFile("/app/export?format=csv", "withdrawals.csv"),
+                  }
+                : { content: "Export CSV", url: "/app/billing", helpText: "Pro" },
+              isPro
+                ? {
+                    content: "Export PDF pack",
+                    onAction: () => downloadFile("/app/export?format=pdf", "withdrawals-pack.pdf"),
+                  }
+                : { content: "Export PDF pack", url: "/app/billing", helpText: "Pro" },
             ]
           : undefined
       }
@@ -345,7 +396,12 @@ export default function Dashboard() {
                     </IndexTable.Cell>
                     <IndexTable.Cell>{r.customerName}</IndexTable.Cell>
                     <IndexTable.Cell>{r.email}</IndexTable.Cell>
-                    <IndexTable.Cell>{r.orderRef || "—"}</IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="150" blockAlign="center" wrap={false}>
+                        <Text as="span" variant="bodySm">{r.orderRef || "—"}</Text>
+                        {orderBadge(r.orderCheck)}
+                      </InlineStack>
+                    </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Text as="span" variant="bodySm">
                         {r.reason ? reasonLabel(r.reason, "en") : "—"}
@@ -374,8 +430,9 @@ export default function Dashboard() {
                         <Button
                           size="micro"
                           variant="plain"
-                          url={`/app/requests/${r.id}/pdf`}
-                          target="_blank"
+                          onClick={() =>
+                            downloadFile(`/app/requests/${r.id}/pdf`, `withdrawal-${r.id}.pdf`)
+                          }
                         >
                           PDF
                         </Button>

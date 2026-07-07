@@ -284,7 +284,8 @@ async function checkOrder(
   try {
     const { admin } = await unauthenticated.admin(shop);
     return await verifyOrder(admin, orderRef, email);
-  } catch {
+  } catch (e) {
+    console.error(`[checkOrder] admin unavailable for shop=${shop}:`, e);
     return { status: "UNAVAILABLE" };
   }
 }
@@ -410,10 +411,13 @@ export async function action({ request }: ActionFunctionArgs) {
     if (emailCount >= MAX_PER_EMAIL_PER_DAY) return html(renderTooMany(accent, showBranding));
 
     // Server-side order check (never trust a client-supplied order id). Captures
-    // the matched order for later automation; enforces strict mode.
+    // the matched order for later automation; enforces strict mode. The result is
+    // stored so the merchant can see whether the request references a real order.
     let matchedOrderGid: string | null = null;
+    let orderCheckStatus: string | null = null;
     if (values.orderRef) {
       const check = await checkOrder(shop, values.orderRef, values.email);
+      orderCheckStatus = check.status;
       if (check.status === "MATCH") {
         matchedOrderGid = check.orderGid ?? null;
       } else if (
@@ -456,6 +460,7 @@ export async function action({ request }: ActionFunctionArgs) {
         itemsDescription: values.items,
         reason: values.reason || null,
         orderGid: matchedOrderGid,
+        orderCheck: orderCheckStatus,
         locale,
         status: "PENDING",
         ipAddress,

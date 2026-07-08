@@ -114,37 +114,46 @@ export async function verifyOrder(
   orderRef: string,
   email: string,
 ): Promise<OrderVerifyResult> {
-  const query = `#graphql
-    query VerifyOrder($q: String!) {
-      orders(first: 10, query: $q, sortKey: CREATED_AT, reverse: true) {
-        edges { node { id name email } }
-      }
-    }`;
-  try {
-    const { data, errors } = await gql(admin, query, { q: orderSearchQuery(orderRef) });
-    if (errors && errors.length) return { status: "UNAVAILABLE" };
-    const edges = data?.orders?.edges ?? [];
-    if (edges.length === 0) return { status: "NO_ORDER" };
+  // We match email as a SEARCH FILTER instead of reading order.email back, so we
+  // never request the protected `email` field (which can 403 under Protected
+  // Customer Data rules). We only read the non-protected id + name.
+  const bare = orderRef.trim().replace(/^#/, "").replace(/["\\()]/g, "");
+  const emailClean = email.trim().toLowerCase().replace(/["\\()]/g, "");
 
-    const wanted = email.trim().toLowerCase();
-    const match = edges.find(
-      (e: any) => (e.node.email || "").trim().toLowerCase() === wanted,
+  const runQuery = async (q: string): Promise<any[]> => {
+    const res = await admin.graphql(
+      `#graphql
+      query VerifyOrder($q: String!) {
+        orders(first: 5, query: $q) { edges { node { id name } } }
+      }`,
+      { variables: { q } },
     );
-    if (match) {
-      return { status: "MATCH", orderGid: match.node.id, orderName: match.node.name };
+    const json = (await res.json()) as any;
+    return json?.data?.orders?.edges ?? [];
+  };
+
+  try {
+    // 1) Order number AND email must both match.
+    const both = await runQuery(`name:${bare} AND email:${emailClean}`);
+    if (both.length) {
+      return { status: "MATCH", orderGid: both[0].node.id, orderName: both[0].node.name };
     }
-    return { status: "EMAIL_MISMATCH", orderName: edges[0].node.name };
+    // 2) Order number exists but the email doesn't → mismatch.
+    const byName = await runQuery(`name:${bare}`);
+    if (byName.length) {
+      return { status: "EMAIL_MISMATCH", orderName: byName[0].node.name };
+    }
+    // 3) No order with that number at all.
+    return { status: "NO_ORDER" };
   } catch (err: any) {
-    const status = err?.response?.status ?? err?.status ?? "?";
-    let body = "";
-    try {
-      body = JSON.stringify(err?.body ?? err?.response?.body ?? "");
-    } catch {
-      /* ignore */
+    let detail: string;
+    if (err instanceof Response) {
+      const body = await err.clone().text().catch(() => "");
+      detail = `Response status=${err.status} body=${String(body).slice(0, 300)}`;
+    } else {
+      detail = `${err?.message ?? err} status=${err?.response?.status ?? err?.status ?? "?"}`;
     }
-    console.error(
-      `[verifyOrder] FAILED status=${status} msg=${err?.message} body=${String(body).slice(0, 400)}`,
-    );
+    console.error(`[verifyOrder] FAILED ${detail}`);
     return { status: "UNAVAILABLE" };
   }
 }

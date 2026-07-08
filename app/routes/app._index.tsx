@@ -38,25 +38,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // TEMP diagnostic: what scopes does the token actually have, and does a trivial
-  // Admin API call work? Reveals whether the 403 is scope-related or token-related.
-  try {
-    const dbg = await admin.graphql(`#graphql
-      query Dbg { shop { name myshopifyDomain } }`);
-    const txt = await dbg.text();
-    console.log(
-      `[apidebug] shop=${shop} envSCOPES=${process.env.SCOPES} grantedScope=${session.scope} hasToken=${!!session.accessToken} status=${dbg.status} body=${txt.slice(0, 200)}`,
-    );
-  } catch (e: any) {
-    const info =
-      e instanceof Response
-        ? `THREW status=${e.status} body=${await e.clone().text().catch(() => "")}`
-        : `err=${e?.message}`;
-    console.log(
-      `[apidebug] shop=${shop} envSCOPES=${process.env.SCOPES} grantedScope=${session.scope} hasToken=${!!session.accessToken} ${info}`,
-    );
-  }
-
   const [requests, pendingCount, planNow, settings] = await Promise.all([
     prisma.withdrawalRequest.findMany({
       where: { shop },
@@ -74,10 +55,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const toVerify = requests
     .filter((r) => r.status === "PENDING" && r.orderRef && (!r.orderCheck || r.orderCheck === "UNAVAILABLE"))
     .slice(0, 25);
+  let orderApiBlocked = false;
   for (const r of toVerify) {
     try {
       const res = await verifyOrder(admin, r.orderRef!, r.email);
       r.orderCheck = res.status;
+      if (res.status === "UNAVAILABLE") orderApiBlocked = true;
       if (res.status !== "UNAVAILABLE") {
         await prisma.withdrawalRequest.update({
           where: { id: r.id },
@@ -85,11 +68,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         });
       }
     } catch (e) {
+      orderApiBlocked = true;
       console.error(`[dashboard verify] req=${r.id}`, e);
     }
   }
 
   return json({
+    orderApiBlocked,
     requests: requests.map((r) => ({
       id: r.id,
       customerName: r.customerName,
@@ -253,7 +238,7 @@ function orderBadge(check: string | null | undefined) {
 type RequestRow = ReturnType<typeof useLoaderData<typeof loader>>["requests"][number];
 
 export default function Dashboard() {
-  const { requests, pendingCount, plan, storeName, templates } =
+  const { requests, pendingCount, plan, storeName, templates, orderApiBlocked } =
     useLoaderData<typeof loader>();
   const isPro = plan === "PRO";
   const actionData = useActionData<typeof action>();
@@ -374,6 +359,18 @@ export default function Dashboard() {
     >
       <Layout>
         <Layout.Section>
+          {orderApiBlocked && (
+            <Banner tone="warning" title="Order verification is temporarily unavailable">
+              <p>
+                Shopify hasn’t finished enabling order-data access for this app on
+                your store yet (this can take up to 24 hours after Protected
+                Customer Data approval). Order “Verified / No match” badges and the
+                auto cancel/refund will start working automatically once it’s
+                active — no action needed. If it persists past a day, uninstall and
+                reinstall the app once.
+              </p>
+            </Banner>
+          )}
           {pendingCount > 0 && (
             <Banner tone="warning" title={`${pendingCount} pending request(s)`}>
               Review and process the withdrawal requests below.

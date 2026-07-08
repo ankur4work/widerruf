@@ -45,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       query Dbg { shop { name myshopifyDomain } }`);
     const txt = await dbg.text();
     console.log(
-      `[apidebug] shop=${shop} online=${session.isOnline} hasToken=${!!session.accessToken} scope=${session.scope} status=${dbg.status} body=${txt.slice(0, 200)}`,
+      `[apidebug] shop=${shop} envSCOPES=${process.env.SCOPES} grantedScope=${session.scope} hasToken=${!!session.accessToken} status=${dbg.status} body=${txt.slice(0, 200)}`,
     );
   } catch (e: any) {
     const info =
@@ -53,7 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? `THREW status=${e.status} body=${await e.clone().text().catch(() => "")}`
         : `err=${e?.message}`;
     console.log(
-      `[apidebug] shop=${shop} online=${session.isOnline} hasToken=${!!session.accessToken} scope=${session.scope} ${info}`,
+      `[apidebug] shop=${shop} envSCOPES=${process.env.SCOPES} grantedScope=${session.scope} hasToken=${!!session.accessToken} ${info}`,
     );
   }
 

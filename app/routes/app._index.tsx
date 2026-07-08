@@ -238,7 +238,7 @@ function orderBadge(check: string | null | undefined) {
 type RequestRow = ReturnType<typeof useLoaderData<typeof loader>>["requests"][number];
 
 export default function Dashboard() {
-  const { requests, pendingCount, plan, storeName, templates, orderApiBlocked } =
+  const { requests, pendingCount, plan, storeName, templates } =
     useLoaderData<typeof loader>();
   const isPro = plan === "PRO";
   const actionData = useActionData<typeof action>();
@@ -359,18 +359,6 @@ export default function Dashboard() {
     >
       <Layout>
         <Layout.Section>
-          {orderApiBlocked && (
-            <Banner tone="warning" title="Order verification is temporarily unavailable">
-              <p>
-                Shopify hasn’t finished enabling order-data access for this app on
-                your store yet (this can take up to 24 hours after Protected
-                Customer Data approval). Order “Verified / No match” badges and the
-                auto cancel/refund will start working automatically once it’s
-                active — no action needed. If it persists past a day, uninstall and
-                reinstall the app once.
-              </p>
-            </Banner>
-          )}
           {pendingCount > 0 && (
             <Banner tone="warning" title={`${pendingCount} pending request(s)`}>
               Review and process the withdrawal requests below.

@@ -1,7 +1,21 @@
 import prisma from "~/db.server";
 
+/**
+ * Testing override: shops listed in FORCE_PRO_SHOPS (comma-separated domains) are
+ * always treated as Pro, regardless of billing. Use ONLY for dev stores — remove
+ * before relying on real billing in production.
+ */
+function isForcedPro(shop: string): boolean {
+  return (process.env.FORCE_PRO_SHOPS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(shop.toLowerCase());
+}
+
 /** True when the shop is on the paid Pro plan (reads the synced DB value). */
 export async function isProShop(shop: string): Promise<boolean> {
+  if (isForcedPro(shop)) return true;
   const sub = await prisma.shopSubscription.findUnique({ where: { shop } });
   return sub?.plan === "PRO";
 }
@@ -19,6 +33,18 @@ export async function syncPlanFromShopify(
   admin: AdminLike,
   shop: string,
 ): Promise<"FREE" | "PRO"> {
+  // Dev-store testing override — force Pro without billing.
+  if (isForcedPro(shop)) {
+    await prisma.shopSubscription
+      .upsert({
+        where: { shop },
+        update: { plan: "PRO", status: "ACTIVE" },
+        create: { shop, plan: "PRO" },
+      })
+      .catch(() => {});
+    return "PRO";
+  }
+
   let res: Response;
   try {
     res = await admin.graphql(`#graphql

@@ -38,6 +38,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
+  // TEMP diagnostic: what scopes does the token actually have, and does a trivial
+  // Admin API call work? Reveals whether the 403 is scope-related or token-related.
+  try {
+    const dbg = await admin.graphql(`#graphql
+      query Dbg { shop { name myshopifyDomain } }`);
+    const txt = await dbg.text();
+    console.log(
+      `[apidebug] shop=${shop} online=${session.isOnline} hasToken=${!!session.accessToken} scope=${session.scope} status=${dbg.status} body=${txt.slice(0, 200)}`,
+    );
+  } catch (e: any) {
+    const info =
+      e instanceof Response
+        ? `THREW status=${e.status} body=${await e.clone().text().catch(() => "")}`
+        : `err=${e?.message}`;
+    console.log(
+      `[apidebug] shop=${shop} online=${session.isOnline} hasToken=${!!session.accessToken} scope=${session.scope} ${info}`,
+    );
+  }
+
   const [requests, pendingCount, planNow, settings] = await Promise.all([
     prisma.withdrawalRequest.findMany({
       where: { shop },

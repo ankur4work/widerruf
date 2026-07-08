@@ -134,8 +134,17 @@ export async function verifyOrder(
       return { status: "MATCH", orderGid: match.node.id, orderName: match.node.name };
     }
     return { status: "EMAIL_MISMATCH", orderName: edges[0].node.name };
-  } catch (err) {
-    console.error("[verifyOrder] admin query failed:", err);
+  } catch (err: any) {
+    const status = err?.response?.status ?? err?.status ?? "?";
+    let body = "";
+    try {
+      body = JSON.stringify(err?.body ?? err?.response?.body ?? "");
+    } catch {
+      /* ignore */
+    }
+    console.error(
+      `[verifyOrder] FAILED status=${status} msg=${err?.message} body=${String(body).slice(0, 400)}`,
+    );
     return { status: "UNAVAILABLE" };
   }
 }

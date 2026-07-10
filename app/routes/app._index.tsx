@@ -26,6 +26,7 @@ import { sendDecisionEmail } from "~/lib/email.server";
 import { runWithdrawalAutomation, verifyOrder } from "~/lib/orders.server";
 import { syncPlanFromShopify } from "~/lib/plan.server";
 import { reasonLabel } from "~/lib/i18n";
+import { assessSpam } from "~/lib/spam-heuristics";
 import {
   defaultDecisionTemplate,
   renderTemplate,
@@ -235,12 +236,42 @@ function orderBadge(check: string | null | undefined) {
   return null;
 }
 
+/**
+ * Heuristic junk flag, computed locally (no order API needed). Shown only when the
+ * live order check hasn't already confirmed the order — a real "Verified" order
+ * always wins over the guess.
+ */
+function spamBadge(r: RequestRow) {
+  if (r.orderCheck === "MATCH") return null; // confirmed real → never flag
+  const { suspicious, reasons } = assessSpam({
+    customerName: r.customerName,
+    email: r.email,
+    orderRef: r.orderRef,
+  });
+  if (!suspicious) return null;
+  return (
+    <span title={reasons.join(" · ")}>
+      <Badge tone="critical" size="small">Suspected spam</Badge>
+    </span>
+  );
+}
+
 type RequestRow = ReturnType<typeof useLoaderData<typeof loader>>["requests"][number];
 
 export default function Dashboard() {
   const { requests, pendingCount, plan, storeName, templates } =
     useLoaderData<typeof loader>();
   const isPro = plan === "PRO";
+
+  // Local junk detection (works even while the order API is blocked). A request
+  // is "suspect" when it isn't a confirmed real order AND trips a heuristic.
+  const isSuspect = (r: RequestRow) =>
+    r.orderCheck !== "MATCH" &&
+    assessSpam({ customerName: r.customerName, email: r.email, orderRef: r.orderRef })
+      .suspicious;
+  const spamCount = requests.filter(isSuspect).length;
+  const [showSpamOnly, setShowSpamOnly] = useState(false);
+  const visibleRequests = showSpamOnly ? requests.filter(isSuspect) : requests;
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const shopify = useAppBridge();
@@ -364,6 +395,22 @@ export default function Dashboard() {
               Review and process the withdrawal requests below.
             </Banner>
           )}
+          {spamCount > 0 && (
+            <Box paddingBlockStart={pendingCount > 0 ? "300" : "0"}>
+              <Banner
+                tone="critical"
+                title={`${spamCount} suspected spam request(s)`}
+                action={{
+                  content: showSpamOnly ? "Show all requests" : "Show only suspected spam",
+                  onAction: () => setShowSpamOnly((v) => !v),
+                }}
+              >
+                Flagged locally from fake-looking order numbers, emails, or names.
+                These are guesses (live order verification is currently unavailable),
+                so review before rejecting.
+              </Banner>
+            </Box>
+          )}
         </Layout.Section>
         <Layout.Section>
           <Card padding="0">
@@ -380,7 +427,7 @@ export default function Dashboard() {
             ) : (
               <IndexTable
                 resourceName={{ singular: "request", plural: "requests" }}
-                itemCount={requests.length}
+                itemCount={visibleRequests.length}
                 headings={[
                   { title: "Received (UTC)" },
                   { title: "Name" },
@@ -392,7 +439,7 @@ export default function Dashboard() {
                 ]}
                 selectable={false}
               >
-                {requests.map((r, index) => (
+                {visibleRequests.map((r, index) => (
                   <IndexTable.Row id={r.id} key={r.id} position={index}>
                     <IndexTable.Cell>
                       <Text as="span" variant="bodySm">
@@ -400,7 +447,12 @@ export default function Dashboard() {
                       </Text>
                     </IndexTable.Cell>
                     <IndexTable.Cell>{r.customerName}</IndexTable.Cell>
-                    <IndexTable.Cell>{r.email}</IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="150" blockAlign="center" wrap={false}>
+                        <Text as="span" variant="bodySm">{r.email}</Text>
+                        {spamBadge(r)}
+                      </InlineStack>
+                    </IndexTable.Cell>
                     <IndexTable.Cell>
                       <InlineStack gap="150" blockAlign="center" wrap={false}>
                         <Text as="span" variant="bodySm">{r.orderRef || "—"}</Text>

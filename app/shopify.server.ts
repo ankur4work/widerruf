@@ -11,7 +11,6 @@ import {
 export const PLAN_PRO = "Pro";
 export const BILLING_TEST = process.env.SHOPIFY_BILLING_TEST !== "false";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
-import { restResources } from "@shopify/shopify-api/rest/admin/2025-07";
 import prisma from "./db.server";
 
 const shopify = shopifyApp({
@@ -23,7 +22,6 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
-  restResources,
   billing: {
     [PLAN_PRO]: {
       lineItems: [
@@ -73,10 +71,12 @@ const shopify = shopifyApp({
   },
   future: {
     unstable_newEmbeddedAuthStrategy: true,
+    // Request EXPIRING offline access tokens (Shopify requirement for all public
+    // apps by 2027-01-01). With this on, token exchange sends `expiring=1`, tokens
+    // rotate (~hourly), and the library auto-refreshes them via the stored
+    // refresh_token (needs the Session.refreshToken/refreshTokenExpires columns).
+    expiringOfflineAccessTokens: true,
   },
-  ...(process.env.SHOP_CUSTOM_DOMAIN
-    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
-    : {}),
 });
 
 export default shopify;

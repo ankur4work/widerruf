@@ -20,21 +20,25 @@ datasource db {
 
 // Shopify OAuth session (from @shopify/shopify-app-session-storage-prisma)
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  // Expiring offline access tokens (session-storage-prisma v9): the refresh token
+  // and its expiry, used to auto-refresh the short-lived access token.
+  refreshToken        String?
+  refreshTokenExpires DateTime?
 }
 
 // Per-shop settings for the withdrawal button + form
